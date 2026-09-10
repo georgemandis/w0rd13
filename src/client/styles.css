@@ -345,7 +345,8 @@ h2 { margin: 0 0 0.75rem; font-size: 1.6rem; line-height: 1.2; letter-spacing: -
   flex: 1 1 0; max-width: 2.6rem; height: 3.4rem; border: 0; border-radius: 4px;
   background: var(--key); color: var(--key-text); cursor: pointer; padding: 0;
 }
-.kb-wide { flex: 1.6 1 0; max-width: 4.2rem; font-size: 0.7rem; }
+.kb-wide { flex: 1.6 1 0; max-width: 4.2rem; font-size: 0.7rem; display: grid; place-items: center; }
+.kb svg { width: 1.5rem; height: 1.5rem; display: block; }
 .kb-g, .kb-y { color: #fff; }
 .kb-g { background: var(--green); }
 .kb-y { background: var(--yellow); }
