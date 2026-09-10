@@ -68,15 +68,30 @@ const QUIT_LINES = [
 ];
 let nagIndex = 0;
 
-/** Swatch colours mirror the CSS themes so the menu can preview themes that aren't active. */
+/**
+ * Swatch colours mirror the CSS themes so the menu can preview themes that aren't active.
+ * `names` are how the legend describes the three tile states in that theme.
+ */
 const THEMES = [
-  { id: "classic", name: "Classic", bg: "#ffffff", a: "#6aaa64", b: "#c9b458" },
-  { id: "slate", name: "Slate", bg: "#222938", a: "#5f9e5a", b: "#c8a94a" },
-  { id: "noir", name: "Noir", bg: "#121213", a: "#538d4e", b: "#b59f3b" },
-  { id: "bubblegum", name: "Bubblegum", bg: "#2c1a33", a: "#4fb383", b: "#e6b04e" },
-  { id: "citrus", name: "Citrus", bg: "#fff8e6", a: "#4caf6d", b: "#f2a93b" },
-  { id: "prince", name: "I Would Die 4 u", bg: "#2b0a4e", a: "#a35bff", b: "#f2c14e" },
+  { id: "classic", name: "Classic", bg: "#ffffff", a: "#6aaa64", b: "#c9b458", names: ["Green", "Yellow", "Grey"] },
+  { id: "slate", name: "Slate", bg: "#222938", a: "#5f9e5a", b: "#c8a94a", names: ["Green", "Yellow", "Grey"] },
+  { id: "noir", name: "Noir", bg: "#121213", a: "#538d4e", b: "#b59f3b", names: ["Green", "Yellow", "Grey"] },
+  { id: "bubblegum", name: "Bubblegum", bg: "#2c1a33", a: "#4fb383", b: "#e6b04e", names: ["Mint", "Gold", "Plum"] },
+  { id: "citrus", name: "Citrus", bg: "#fff8e6", a: "#4caf6d", b: "#f2a93b", names: ["Green", "Orange", "Tan"] },
+  { id: "prince", name: "I Would Die 4 u", bg: "#2b0a4e", a: "#a35bff", b: "#f2c14e", names: ["Purple", "Gold", "Dark purple"] },
+  { id: "gameboy", name: "Game Boy", bg: "#c4cfa1", a: "#306230", b: "#8bac0f", names: ["Dark green", "Lime", "Olive"] },
+  { id: "terminal", name: "Terminal", bg: "#0b0f0b", a: "#1f8f1f", b: "#b8a12a", names: ["Bright green", "Amber", "Dark"] },
 ] as const;
+
+function themeFor(id: string): Theme {
+  return THEMES.find((t) => t.id === id) ?? THEMES[0];
+}
+
+/** The legend sentence, in the current theme's own colour names. */
+function legendText(): string {
+  const [correct, present, absent] = themeFor(currentTheme()).names;
+  return `${correct} is in the right spot. ${present} is in the word, somewhere else. ${absent} is not in the word.`;
+}
 type Theme = (typeof THEMES)[number];
 const THEME_KEY = "w0rd13:theme";
 /**
@@ -125,6 +140,20 @@ function budgetFromUrl(): number {
 }
 
 const app = document.getElementById("app")!;
+
+/** Plausible custom events. The snippet in index.html queues calls until the script loads. */
+function track(event: string, props: Record<string, string | number | boolean> = {}): void {
+  try {
+    (window as unknown as { plausible?: (e: string, o?: { props: typeof props }) => void }).plausible?.(event, { props });
+  } catch {
+    /* analytics must never break the game */
+  }
+}
+
+function setupProps(): Record<string, string | number> {
+  const s = currentSettings();
+  return { mode: s.mode, letters: s.length, difficulty: s.difficulty, clock: s.clock, pack: s.pack || "mixed", vocab: s.vocab };
+}
 const toastEl = document.getElementById("toast")!;
 const KEY_ROWS = ["qwertyuiop", "asdfghjkl", "zxcvbnm"];
 const DIGIT_ROW = "1234567890";
@@ -254,8 +283,10 @@ function swatchStyle(t: Theme): string {
 }
 
 function applyTheme(id: string): void {
-  const theme = THEMES.find((t) => t.id === id) ?? THEMES[0];
+  const theme = themeFor(id);
   document.documentElement.dataset.theme = theme.id;
+  const legend = document.getElementById("legend-text");
+  if (legend) legend.textContent = legendText();
   const label = document.getElementById("theme-name");
   if (label) label.textContent = theme.name;
   const swatch = document.getElementById("theme-swatch");
@@ -444,6 +475,7 @@ function giveUp(): void {
   save();
   render();
   finishRun("quit");
+  track("Gave up", { ...setupProps(), solved: state.results.filter((r) => r.correct).length });
 }
 
 function giveUpControls(): HTMLElement {
@@ -501,6 +533,7 @@ function explode(): void {
   state.phase = "exploded";
   render();
   finishRun("boom");
+  track("Exploded", { ...setupProps(), solved: state.results.filter((r) => r.correct).length });
   window.setTimeout(() => {
     if (state.phase === "exploded") {
       state.phase = "done";
@@ -520,6 +553,7 @@ function setChecking(on: boolean): void {
 }
 
 function startRound(index: number): void {
+  if (index === 0) track("Game started", setupProps());
   state.round = index;
   state.input = "";
   state.confirmingQuit = false;
@@ -537,6 +571,7 @@ function nextRound(): void {
     stopTimer();
     render();
     finishRun(finishKind());
+    track("Game finished", { ...setupProps(), outcome: finishKind(), correct: state.results.filter((r) => r.correct).length, seconds: Math.round(totalMs() / 1000) });
   } else {
     startRound(state.round + 1);
   }
@@ -921,7 +956,7 @@ function renderIntro(): void {
       h("p", { class: "muted small", id: "bonus-note", hidden: "" }, "Bonus is just another game for the same day. Different seed, nothing else changes."),
       h("div", { class: "legend" },
         wordRow("crane", ["x", "y", "x", "g", "x"]),
-        h("p", { class: "muted" }, "Green is in the right spot. Yellow is in the word, somewhere else. Grey is not in the word."),
+        h("p", { class: "muted", id: "legend-text" }, legendText()),
       ),
       settingsPanel(),
       start,
@@ -1040,6 +1075,7 @@ function renderResults(): void {
   shareBtn.addEventListener("click", async () => {
     const ok = await copy(share);
     toast(ok ? "Copied. Paste it wherever you brag." : "Couldn't copy. Select the text below instead.");
+    track("Score copied", setupProps());
   });
   const pre = h("pre", { class: "share-preview" }, share);
 

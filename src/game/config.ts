@@ -35,6 +35,19 @@ export const PACKS: Record<string, { name: string; blurb: string; loose?: boolea
   nature: { name: "The outdoors", blurb: "Weather, water and wild places." },
   colours: { name: "Colours", blurb: "Every shade from ashen to tawny." },
   purple: { name: "Purple Rain", blurb: "Song and album titles, names included, plus spellings like DIE4U.", loose: true },
+  swift: { name: "Swiftie", blurb: "Taylor Swift song and album titles, a few names included.", loose: true },
+  sports: { name: "Sports", blurb: "Courts, pitches, medals and the people chasing them." },
+  space: { name: "Space", blurb: "Orbits, comets, and a couple of planets.", loose: true },
+  spooky: { name: "Spooky", blurb: "Ghosts, ghouls and things in the crypt." },
+  weather: { name: "Weather", blurb: "Everything the forecast might say." },
+  jobs: { name: "Jobs", blurb: "Nurses, pilots, bakers and a ninja." },
+  games: { name: "Games", blurb: "Cards, chess, and the words you say when you lose." },
+  ocean: { name: "Ocean", blurb: "Whales, wharves and the briny deep." },
+  feelings: { name: "Feelings", blurb: "Every mood from giddy to sulky." },
+  tech: { name: "Tech", blurb: "Cache, debug, proxy: words from the terminal." },
+  fashion: { name: "Fashion", blurb: "Tweed, denim, tiaras and vogue." },
+  home: { name: "Home", blurb: "Porches, attics, quilts and the kitchen stove." },
+  drinks: { name: "Drinks", blurb: "From mocha to vodka, and the morning after." },
 };
 
 /** Characters a guess may contain for this pack: letters, plus digits for loose packs. */

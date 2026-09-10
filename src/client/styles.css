@@ -97,6 +97,41 @@
 }
 :root[data-theme="prince"] .tile-g { background: #7a2cff; border-color: #7a2cff; }
 
+:root[data-theme="gameboy"] {
+  color-scheme: light;
+  --bg: #c4cfa1;
+  --surface: #b3bf8f;
+  --line: #8b9a6a;
+  --text: #1f2a1a;
+  --muted: #4f5f3f;
+  --green: #306230;
+  --yellow: #8bac0f;
+  --grey: #7f8f66;
+  --key: #a8b585;
+  --key-text: #1f2a1a;
+  --miss: #6b2f2f;
+  --sq-miss: #0f380f;
+}
+
+:root[data-theme="terminal"] {
+  color-scheme: dark;
+  --bg: #0b0f0b;
+  --surface: #121a12;
+  --line: #1f3a1f;
+  --text: #9dff9d;
+  --muted: #4f9a4f;
+  --green: #1f8f1f;
+  --yellow: #b8a12a;
+  --grey: #233523;
+  --key: #16261a;
+  --key-text: #9dff9d;
+  --miss: #ff5c5c;
+  --sq-miss: #050805;
+  --font: "SF Mono", Menlo, Consolas, "Liberation Mono", monospace;
+}
+:root[data-theme="terminal"] .tile-empty, :root[data-theme="terminal"] .tile-filled { border-color: #2e5a2e; }
+:root[data-theme="terminal"] .primary { background: var(--green); border-color: var(--green); color: #fff; }
+
 * { box-sizing: border-box; }
 
 html, body { margin: 0; background: var(--bg); color: var(--text); }
