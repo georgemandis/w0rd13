@@ -359,14 +359,16 @@ async function submitGuess(): Promise<void> {
     return;
   }
   state.submitting = true;
+  setChecking(true);
   const elapsed = performance.now() - state.roundStart;
   const res = await fetch(`/api/guess?${puzzleQuery()}`, {
     method: "POST",
     headers: { "content-type": "application/json" },
     body: JSON.stringify({ round: state.round, guess: state.input }),
   });
-  const data = (await res.json()) as GuessResponse;
+  const data = (await res.json().catch(() => ({ valid: false }))) as GuessResponse;
   state.submitting = false;
+  setChecking(false);
 
   if (!data.valid) {
     shake("Not in the word list");
@@ -505,6 +507,16 @@ function explode(): void {
       render();
     }
   }, 1800);
+}
+
+/** While a guess is being checked, dim the input row and grey out Enter so the wait is obvious. */
+function setChecking(on: boolean): void {
+  document.getElementById("input-row")?.classList.toggle("checking", on);
+  const enter = document.querySelector<HTMLButtonElement>('.kb[aria-label="Enter"]');
+  if (enter) {
+    enter.disabled = on;
+    enter.textContent = on ? "…" : "Enter";
+  }
 }
 
 function startRound(index: number): void {

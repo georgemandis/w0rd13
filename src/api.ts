@@ -13,6 +13,12 @@ import { PACK_WORDS } from "./words/packs";
  *   POST /api/reveal {round}                            -> answer (countdown blew up)
  */
 
+/** Optional shared store (the Worker uses the edge cache) so fresh isolates don't regenerate puzzles. */
+export interface PuzzleStore {
+  get(key: string): Promise<Puzzle | null>;
+  put(key: string, puzzle: Puzzle): Promise<void>;
+}
+
 const cache = new Map<string, Puzzle>();
 const allowedByLength = new Map<number, Set<string>>();
 
@@ -26,13 +32,16 @@ function isAllowed(word: string, length: number, pack: string): boolean {
   return set.has(word);
 }
 
-export function getPuzzle(opts: Required<PuzzleOptions>): Puzzle {
+export async function getPuzzle(opts: Required<PuzzleOptions>, store?: PuzzleStore): Promise<Puzzle> {
   const key = `${opts.mode}:${opts.date}:${opts.length}:${opts.difficulty}:${opts.pack}:${opts.vocab}`;
-  let puzzle = cache.get(key);
+  let puzzle: Puzzle | null = cache.get(key) ?? null;
+  if (puzzle) return puzzle;
+  puzzle = (await store?.get(key).catch(() => null)) ?? null;
   if (!puzzle) {
     puzzle = generatePuzzle(opts);
-    cache.set(key, puzzle);
+    await store?.put(key, puzzle).catch(() => undefined);
   }
+  cache.set(key, puzzle);
   return puzzle;
 }
 
@@ -65,12 +74,12 @@ async function readRound(req: Request, puzzle: Puzzle): Promise<{ round: number;
 }
 
 /** Returns a Response for /api/* requests, or null if the path is not an API route. */
-export async function handleApi(req: Request): Promise<Response | null> {
+export async function handleApi(req: Request, store?: PuzzleStore): Promise<Response | null> {
   const url = new URL(req.url);
   if (!url.pathname.startsWith("/api/")) return null;
   const params = parseParams(url);
   if (params instanceof Response) return params;
-  const puzzle = getPuzzle(params);
+  const puzzle = await getPuzzle(params, store);
 
   if (url.pathname === "/api/puzzle" && req.method === "GET") {
     return Response.json({

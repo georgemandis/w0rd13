@@ -242,7 +242,9 @@ h2 { margin: 0 0 0.75rem; font-size: 1.6rem; line-height: 1.2; letter-spacing: -
 .tile-x { background: var(--grey); border-color: var(--grey); }
 .tile-empty { background: transparent; border-color: var(--line); color: var(--text); }
 .tile-filled { background: transparent; border-color: var(--muted); color: var(--text); }
-.row-input { margin-top: 0.25rem; }
+.row-input { margin-top: 0.25rem; transition: opacity 0.15s; }
+.row-input.checking { opacity: 0.45; }
+.row-input.checking .tile-filled { animation: pulse 0.8s ease-in-out infinite; }
 .row-win .tile, .row-miss .tile { animation: flip 0.45s ease both; }
 .row-win .tile:nth-child(2), .row-miss .tile:nth-child(2) { animation-delay: 0.08s; }
 .row-win .tile:nth-child(3), .row-miss .tile:nth-child(3) { animation-delay: 0.16s; }
@@ -276,24 +278,30 @@ h2 { margin: 0 0 0.75rem; font-size: 1.6rem; line-height: 1.2; letter-spacing: -
 .kb-y { background: var(--yellow); }
 .kb-x { background: var(--grey); color: #fff; }
 .kb:active { filter: brightness(0.9); }
+.kb:disabled { opacity: 0.45; cursor: wait; }
 .kb-digits .kb { height: 2.4rem; font-size: 0.8rem; }
 .kb-digit { background: transparent; border: 1px solid var(--line); color: var(--muted); }
 
 /* ---------- give up ---------- */
 
-.giveup { margin-top: 1.5rem; text-align: center; }
+.giveup { margin-top: 1.75rem; text-align: center; }
 .giveup-btn {
-  font: inherit; font-weight: 600; font-size: 1rem;
-  display: block; width: min(100%, 18rem); margin: 0 auto; padding: 0.8rem 1.5rem;
-  border-radius: 999px; cursor: pointer;
-  background: transparent; color: var(--miss); border: 1px solid var(--miss);
+  font: inherit; font-size: 0.85rem; color: var(--muted);
+  background: transparent; border: 0; padding: 0.25rem 0.5rem; cursor: pointer;
+  text-decoration: underline; text-underline-offset: 3px;
 }
-.giveup-btn:hover { background: color-mix(in srgb, var(--miss) 10%, transparent); }
-.giveup-btn:focus-visible { outline: 2px solid var(--miss); outline-offset: 3px; }
-.giveup-yes { background: var(--miss); color: #fff; }
-.giveup-ask { margin: 0 0 0.75rem; font-weight: 600; }
-.giveup-row { display: grid; gap: 0.5rem; }
-.giveup-row .secondary { margin-top: 0; }
+.giveup-btn:hover { color: var(--miss); }
+.giveup-btn:focus-visible { outline: 2px solid var(--text); outline-offset: 2px; }
+.giveup-ask { margin: 0 0 0.5rem; font-size: 0.9rem; }
+.giveup-row { display: flex; justify-content: center; gap: 0.5rem; }
+.giveup-row button {
+  font: inherit; font-size: 0.85rem; font-weight: 600; padding: 0.4rem 0.9rem; border-radius: 999px; cursor: pointer;
+  width: auto; margin: 0; text-decoration: none;
+}
+.giveup-yes { background: transparent; color: var(--miss); border: 1px solid var(--miss); }
+.giveup-yes:hover { background: var(--miss); color: #fff; }
+.giveup-no { background: transparent; color: var(--text); border: 1px solid var(--line); }
+.giveup-no:hover { border-color: var(--text); background: transparent; }
 .quit-note { font-size: 1.05rem; margin: 0.5rem 0 0; }
 
 /* ---------- results ---------- */
