@@ -943,9 +943,14 @@ function keyboard(clues: Clue[]): HTMLElement {
   return kb;
 }
 
+/** Backspace is drawn as an SVG so it can't disappear into a font that lacks the ⌫ glyph. */
+const BACKSPACE_ICON =
+  '<svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path fill="currentColor" d="M22 3H7c-.69 0-1.23.35-1.59.88L0 12l5.41 8.11c.36.53.9.89 1.59.89h15c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm-3 12.59L17.59 17 14 13.41 10.41 17 9 15.59 12.59 12 9 8.41 10.41 7 14 10.59 17.59 7 19 8.41 15.41 12 19 15.59z"/></svg>';
+
 function keyButton(label: string, key: string, cls: string): HTMLElement {
   const b = h("button", { class: `kb ${cls}`.trim(), type: "button", "aria-label": key });
-  b.textContent = label;
+  if (key === "Backspace") b.innerHTML = BACKSPACE_ICON;
+  else b.textContent = label;
   b.addEventListener("click", () => handleKey(key));
   return b;
 }
