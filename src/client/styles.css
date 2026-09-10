@@ -132,6 +132,34 @@
 :root[data-theme="terminal"] .tile-empty, :root[data-theme="terminal"] .tile-filled { border-color: #2e5a2e; }
 :root[data-theme="terminal"] .primary { background: var(--green); border-color: var(--green); color: #fff; }
 
+:root[data-theme="clown"] {
+  color-scheme: light;
+  --bg: #fffdf7;
+  --surface: #fff1e0;
+  --line: #ffb3b3;
+  --text: #2a0a0a;
+  --muted: #b3443a;
+  --green: #e63946;
+  --yellow: #ffb703;
+  --grey: #3a6ea5;
+  --key: #ffe08a;
+  --key-text: #2a0a0a;
+  --miss: #7209b7;
+  --sq-miss: #1d3557;
+  --font: "Comic Neue", "Comic Sans MS", "Chalkboard SE", cursive;
+}
+:root[data-theme="clown"] .top {
+  border-bottom: 0; padding-bottom: 1rem;
+  background: repeating-linear-gradient(90deg, #e63946 0 16px, #fffdf7 16px 32px) bottom / 100% 8px no-repeat;
+}
+:root[data-theme="clown"] .brand::after { content: "🤡"; font-size: 1.3rem; margin-left: 0.15rem; }
+:root[data-theme="clown"] .primary { background: #e63946; border-color: #e63946; color: #fff; }
+:root[data-theme="clown"] .tile { border-radius: 50% 50% 50% 50% / 12% 12% 12% 12%; }
+:root[data-theme="clown"] .tile-empty { border-style: dashed; }
+:root[data-theme="clown"] .clock { color: #e63946; }
+:root[data-theme="clown"] h2 { color: #e63946; }
+:root[data-theme="clown"] .mode[aria-pressed="true"] { border-bottom-color: #e63946; }
+
 * { box-sizing: border-box; }
 
 html, body { margin: 0; background: var(--bg); color: var(--text); }
@@ -391,6 +419,18 @@ h2 { margin: 0 0 0.75rem; font-size: 1.6rem; line-height: 1.2; letter-spacing: -
 .played-current .played-label { font-weight: 700; }
 .played-label { font-weight: 500; }
 .played-score { font-variant-numeric: tabular-nums; white-space: nowrap; color: var(--muted); }
+
+/* ---------- history and stats ---------- */
+
+.history { margin-top: 2rem; padding-top: 1.25rem; border-top: 1px solid var(--line); }
+.history h3 { margin: 0 0 0.75rem; font-size: 1.1rem; }
+.stats { display: grid; grid-template-columns: repeat(4, 1fr); gap: 0.5rem; margin: 0 0 1rem; padding: 0; }
+.stat { display: grid; text-align: center; }
+.stat dt { order: 2; font-size: 0.75rem; color: var(--muted); }
+.stat dd { order: 1; margin: 0; font-size: 1.6rem; font-weight: 700; line-height: 1.1; font-variant-numeric: tabular-nums; }
+.played-label .muted { font-weight: 400; }
+.past-notice { margin: 0 0 0.75rem; font-size: 0.9rem; color: var(--muted); }
+.past-notice .link-btn { font-size: inherit; }
 
 /* ---------- explosion, toast ---------- */
 

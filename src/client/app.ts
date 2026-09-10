@@ -81,6 +81,7 @@ const THEMES = [
   { id: "prince", name: "I Would Die 4 u", bg: "#2b0a4e", a: "#a35bff", b: "#f2c14e", names: ["Purple", "Gold", "Dark purple"] },
   { id: "gameboy", name: "Game Boy", bg: "#c4cfa1", a: "#306230", b: "#8bac0f", names: ["Dark green", "Lime", "Olive"] },
   { id: "terminal", name: "Terminal", bg: "#0b0f0b", a: "#1f8f1f", b: "#b8a12a", names: ["Bright green", "Amber", "Dark"] },
+  { id: "clown", name: "Down to Clown", bg: "#fffdf7", a: "#e63946", b: "#ffb703", names: ["Red", "Gold", "Blue"] },
 ] as const;
 
 function themeFor(id: string): Theme {
@@ -99,6 +100,13 @@ const THEME_KEY = "w0rd13:theme";
  * Defaults (5 letters, normal, mixed, stopwatch, daily) are omitted, so a bare URL is always the standard game.
  */
 interface Settings { mode: Mode; length: number; difficulty: Difficulty; clock: Clock; pack: string; vocab: Vocab }
+
+const TODAY = localDateString();
+
+function readUrlDate(): string {
+  const d = new URLSearchParams(location.search).get("date") ?? "";
+  return /^\d{4}-\d{2}-\d{2}$/.test(d) && d <= TODAY ? d : TODAY;
+}
 
 function readUrlSettings(): Settings {
   const q = new URLSearchParams(location.search);
@@ -122,6 +130,7 @@ function settingsUrl(): string {
   if (activePack()) q.set("pack", activePack());
   if (state.vocab !== DEFAULT_VOCAB && !activePack()) q.set("vocab", state.vocab);
   if (state.clock !== DEFAULT_CLOCK) q.set("clock", state.clock);
+  if (state.date !== TODAY) q.set("date", state.date);
   const budget = new URLSearchParams(location.search).get("budget");
   if (budget) q.set("budget", budget);
   const qs = q.toString();
@@ -163,7 +172,7 @@ const state: State = {
   budgetMs: budgetFromUrl(),
   penaltyMs: 0,
   finalTimeLeftMs: null,
-  date: localDateString(),
+  date: readUrlDate(),
   puzzle: null,
   phase: "loading",
   round: 0,
@@ -237,21 +246,90 @@ function save(): void {
   }
 }
 
-/** Every finished game for today, newest first. */
-function gamesToday(): SavedGame[] {
-  const prefix = `w0rd13:game:${state.date}:`;
-  const games: SavedGame[] = [];
+/** Every finished game in this browser, keyed by date, newest first within a day. */
+function allGames(): Map<string, SavedGame[]> {
+  const byDate = new Map<string, SavedGame[]>();
   try {
     for (let i = 0; i < localStorage.length; i++) {
       const k = localStorage.key(i);
-      if (!k || !k.startsWith(prefix)) continue;
+      if (!k || !k.startsWith("w0rd13:game:")) continue;
+      const date = k.split(":")[2]!;
       const g = JSON.parse(localStorage.getItem(k) ?? "null") as SavedGame | null;
-      if (g?.settings && Array.isArray(g.results)) games.push(g);
+      if (!g?.settings || !Array.isArray(g.results)) continue;
+      if (!byDate.has(date)) byDate.set(date, []);
+      byDate.get(date)!.push(g);
     }
   } catch {
     /* ignore */
   }
-  return games.sort((a, b) => (b.finishedAt ?? 0) - (a.finishedAt ?? 0));
+  for (const games of byDate.values()) games.sort((a, b) => (b.finishedAt ?? 0) - (a.finishedAt ?? 0));
+  return byDate;
+}
+
+function gamesFor(date: string): SavedGame[] {
+  return allGames().get(date) ?? [];
+}
+
+/** Finished games for the date being viewed, newest first. */
+function gamesToday(): SavedGame[] {
+  return gamesFor(state.date);
+}
+
+function isPerfect(g: SavedGame): boolean {
+  return g.results.length > 0 && g.results.every((r) => r.correct);
+}
+
+function isStandard(s: Settings): boolean {
+  return s.mode === "daily" && s.length === DEFAULT_LENGTH && s.difficulty === DEFAULT_DIFFICULTY && s.clock === DEFAULT_CLOCK && !s.pack && s.vocab === DEFAULT_VOCAB;
+}
+
+function shiftDate(iso: string, days: number): string {
+  const [y, m, d] = iso.split("-").map(Number);
+  return localDateString(new Date(y!, m! - 1, d! + days));
+}
+
+interface Stats { daysPlayed: number; streak: number; perfect: number; bestStandardMs: number | null }
+
+function computeStats(byDate: Map<string, SavedGame[]>): Stats {
+  const games = [...byDate.values()].flat();
+  let streak = 0;
+  // A streak counts back from today, or from yesterday if today hasn't been played yet.
+  let cursor = byDate.has(TODAY) ? TODAY : shiftDate(TODAY, -1);
+  while (byDate.has(cursor)) {
+    streak++;
+    cursor = shiftDate(cursor, -1);
+  }
+  const standardPerfect = games.filter((g) => isPerfect(g) && isStandard(g.settings)).map((g) => g.results.reduce((s, r) => s + r.ms, 0));
+  return {
+    daysPlayed: byDate.size,
+    streak,
+    perfect: games.filter(isPerfect).length,
+    bestStandardMs: standardPerfect.length ? Math.min(...standardPerfect) : null,
+  };
+}
+
+function dayLabel(date: string): string {
+  if (date === TODAY) return "Today";
+  if (date === shiftDate(TODAY, -1)) return "Yesterday";
+  const [y, m, d] = date.split("-").map(Number);
+  const weekday = new Date(y!, m! - 1, d!).toLocaleDateString(undefined, { weekday: "long" });
+  return `${weekday}, ${formatPuzzleDate(date)}`;
+}
+
+function scoreText(g: SavedGame): string {
+  const total = g.results.reduce((sum, r) => sum + r.ms, 0);
+  const time = g.timeLeftMs !== undefined ? `${formatTime(Math.max(0, g.timeLeftMs))} left` : formatTime(total);
+  return `${g.results.map(squareFor).join("")} ${time}${g.award ? ` ${g.award}` : ""}`;
+}
+
+/** Jump to another day (and optionally setup) and load it. */
+function goToDate(date: string, settings?: Settings): void {
+  stopTimer();
+  state.date = date;
+  if (settings) Object.assign(state, settings);
+  syncMode();
+  syncUrl();
+  void loadPuzzle();
 }
 
 function settingsLabel(s: Settings): string {
@@ -901,6 +979,14 @@ function render(): void {
   }
 }
 
+function pastDayNotice(): HTMLElement {
+  const back = h("button", { class: "link-btn", type: "button" }, "Back to today");
+  back.addEventListener("click", () => goToDate(TODAY));
+  const label = dayLabel(state.date);
+  const text = label === "Yesterday" ? "You're looking at yesterday's puzzle. " : `You're looking at the puzzle from ${label}. `;
+  return h("p", { class: "past-notice" }, h("span", {}, text), back);
+}
+
 function packNote(): string {
   if (state.length !== DEFAULT_LENGTH) return "Themes are five-letter only";
   return state.pack ? PACKS[state.pack]!.blurb : "Themes narrow the field, so the clues get sneakier";
@@ -941,21 +1027,66 @@ function playedToday(): HTMLElement | null {
   if (games.length === 0) return null;
   const list = h("ul", { class: "played" });
   for (const g of games) {
-    const total = g.results.reduce((sum, r) => sum + r.ms, 0);
-    const time = g.timeLeftMs !== undefined ? `${formatTime(Math.max(0, g.timeLeftMs))} left` : formatTime(total);
     const current = sameSettings(g.settings, currentSettings());
     const btn = h("button", { class: `played-item${current ? " played-current" : ""}`, type: "button" },
       h("span", { class: "played-label" }, settingsLabel(g.settings)),
-      h("span", { class: "played-score" }, `${g.results.map(squareFor).join("")} ${time}${g.award ? ` ${g.award}` : ""}`),
+      h("span", { class: "played-score" }, scoreText(g)),
     );
     btn.addEventListener("click", () => applySettings(g.settings));
     list.append(h("li", {}, btn));
   }
   return h("section", { class: "played-today" },
-    h("h3", {}, "Played today"),
+    h("h3", {}, state.date === TODAY ? "Played today" : `Played on ${formatPuzzleDate(state.date)}`),
     h("p", { class: "muted small" }, "Tap one to see its results, or change the setup above for a fresh board."),
     list,
   );
+}
+
+/** Stats plus the past week, plus any older days that were played. Past days can be revisited or played late. */
+function historySection(): HTMLElement | null {
+  const byDate = allGames();
+  const stats = computeStats(byDate);
+  const week: string[] = [];
+  for (let back = 1; back <= 7; back++) week.push(shiftDate(TODAY, -back));
+  const older = [...byDate.keys()].filter((d) => d < week[week.length - 1]! ).sort().reverse();
+  if (byDate.size === 0 && state.date === TODAY) {
+    // Nothing played yet: keep the intro clean apart from a way to reach yesterday.
+    const link = h("button", { class: "link-btn", type: "button" }, "Play yesterday's puzzle");
+    link.addEventListener("click", () => goToDate(shiftDate(TODAY, -1)));
+    return h("section", { class: "history" }, link);
+  }
+
+  const statRow = h("dl", { class: "stats" },
+    stat(String(stats.daysPlayed), stats.daysPlayed === 1 ? "day played" : "days played"),
+    stat(String(stats.streak), stats.streak === 1 ? "day streak" : "day streak"),
+    stat(String(stats.perfect), "perfect runs"),
+    stat(stats.bestStandardMs === null ? "–" : formatTime(stats.bestStandardMs), "best standard"),
+  );
+
+  const list = h("ul", { class: "played" });
+  const row = (date: string) => {
+    const games = byDate.get(date) ?? [];
+    const featured = games.find((g) => isStandard(g.settings)) ?? games[0];
+    const extra = games.length > 1 ? `, +${games.length - 1} more` : "";
+    const btn = h("button", { class: `played-item${date === state.date ? " played-current" : ""}`, type: "button" },
+      h("span", { class: "played-label" }, dayLabel(date), h("span", { class: "muted small" }, featured ? `${games.length > 1 || !isStandard(featured.settings) ? ` ${settingsLabel(featured.settings)}` : ""}${extra}` : " not played")),
+      h("span", { class: "played-score" }, featured ? scoreText(featured) : "Play it"),
+    );
+    btn.addEventListener("click", () => goToDate(date, featured?.settings));
+    return h("li", {}, btn);
+  };
+  for (const d of week) list.append(row(d));
+  for (const d of older) list.append(row(d));
+
+  return h("section", { class: "history" },
+    h("h3", {}, "Your week"),
+    statRow,
+    list,
+  );
+}
+
+function stat(value: string, label: string): HTMLElement {
+  return h("div", { class: "stat" }, h("dt", {}, label), h("dd", {}, value));
 }
 
 /** Update the intro's text in place after a settings change, leaving the controls untouched. */
@@ -985,6 +1116,7 @@ function renderIntro(): void {
   app.append(
     h("section", { class: "intro" },
       h("p", { class: "eyebrow", id: "intro-label" }, puzzleLabel()),
+      ...(state.date !== TODAY ? [pastDayNotice()] : []),
       h("h2", {}, "Five words. One guess each."),
       h("p", { id: "intro-text" }, introText()),
       h("p", { class: "muted small", id: "bonus-note", hidden: "" }, "Bonus is just another game for the same day. Different seed, nothing else changes."),
@@ -999,6 +1131,8 @@ function renderIntro(): void {
   );
   const played = playedToday();
   if (played) app.append(played);
+  const hist = historySection();
+  if (hist) app.append(hist);
   const bonusNote = document.getElementById("bonus-note");
   if (bonusNote) bonusNote.hidden = state.mode !== "bonus";
   start.focus();
@@ -1078,6 +1212,7 @@ function renderResults(): void {
 
   const summary = h("section", { class: "results" },
     h("p", { class: "eyebrow" }, puzzleLabel()),
+    ...(state.date !== TODAY ? [pastDayNotice()] : []),
     h("div", { class: "squares" }, ...results.map(square)),
     ...(state.award ? [h("div", { class: "award", role: "img", "aria-label": "Award" }, state.award)] : []),
     h("div", { class: `clock clock-final${exploded ? " clock-danger" : ""}` }, countdown ? formatTime(left) : formatTime(totalMs())),

@@ -56,6 +56,8 @@ export function parseParams(url: URL): Required<PuzzleOptions> | Response {
   const packParam = q.get("pack") ?? "";
   const vocab = q.get("vocab") ?? DEFAULT_VOCAB;
   if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) return bad("bad date");
+  // Past dates are fine (replaying a missed day); tomorrow is allowed for players ahead of UTC, nothing beyond.
+  if (date > localDateString(new Date(Date.now() + 36 * 3600 * 1000))) return bad("date is in the future");
   if (mode !== "daily" && mode !== "bonus") return bad("bad mode");
   if (!isLength(length)) return bad("bad length");
   if (!isDifficulty(difficulty)) return bad("bad difficulty");
