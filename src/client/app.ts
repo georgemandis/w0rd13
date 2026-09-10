@@ -670,6 +670,40 @@ function goHome(): void {
 }
 
 document.getElementById("home-btn")?.addEventListener("click", goHome);
+
+/** Every single-finger gesture, in escalating order. The last one is earned. */
+const FINGERS = ["☝️", "👆", "👉", "👈", "👇", "🫵", "🖕"];
+
+/** Easter egg: linger on the logo (or tap it) and it flips to show what "in 1" looks like. Each flip advances the sequence. */
+function setupLogoFlip(): void {
+  const logo = document.getElementById("logo");
+  const back = logo?.querySelector<HTMLElement>(".logo-back");
+  if (!logo || !back) return;
+  let hoverTimer = 0;
+  let unflipTimer = 0;
+  let finger = 0;
+  const flip = () => {
+    if (!logo.classList.contains("flipped")) {
+      const next = FINGERS[finger % FINGERS.length]!;
+      back.textContent = next;
+      logo.classList.toggle("rude", next === FINGERS[FINGERS.length - 1]);
+      finger++;
+    }
+    window.clearTimeout(unflipTimer);
+    logo.classList.add("flipped");
+    unflipTimer = window.setTimeout(() => logo.classList.remove("flipped", "rude"), 1000);
+  };
+  logo.addEventListener("pointerenter", (e) => {
+    if (e.pointerType !== "mouse") return;
+    hoverTimer = window.setTimeout(flip, 450);
+  });
+  logo.addEventListener("pointerleave", () => window.clearTimeout(hoverTimer));
+  logo.addEventListener("click", (e) => {
+    e.stopPropagation(); // the logo flips; the title text is the home link
+    flip();
+  });
+}
+setupLogoFlip();
 buildThemeMenu();
 applyTheme(currentTheme());
 syncMode();

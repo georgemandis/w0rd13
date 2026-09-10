@@ -164,7 +164,17 @@ body {
   margin: 0; font-size: 1.5rem; font-weight: 800; letter-spacing: -0.02em; line-height: 1;
   color: inherit; background: none; border: 0; padding: 0; font-family: inherit; cursor: pointer;
 }
+.brand { display: inline-flex; align-items: center; gap: 0.45rem; }
 .brand:focus-visible { outline: 2px solid var(--text); outline-offset: 4px; }
+.logo { width: 1.5rem; height: 1.5rem; flex: none; perspective: 200px; }
+.logo-inner { position: relative; display: block; width: 100%; height: 100%; transform-style: preserve-3d; transition: transform 0.45s cubic-bezier(0.4, 0, 0.2, 1); }
+.logo.flipped .logo-inner { transform: rotateY(180deg); }
+.logo.flipped.rude { animation: shake 0.5s 0.35s; }
+.logo-face { position: absolute; inset: 0; width: 100%; height: 100%; backface-visibility: hidden; }
+.logo-back {
+  display: grid; place-items: center; transform: rotateY(180deg);
+  background: var(--sq-miss); border-radius: 0.2rem; font-size: 1.05rem; line-height: 1;
+}
 
 .modes { display: flex; gap: 0.25rem; align-items: center; }
 .mode {
@@ -408,4 +418,6 @@ h2 { margin: 0 0 0.75rem; font-size: 1.6rem; line-height: 1.2; letter-spacing: -
 
 @media (prefers-reduced-motion: reduce) {
   .row-win .tile, .row-miss .tile, .shake, .boom, .quake, .clock-danger { animation: none; }
+  .logo-inner { transition: none; }
+  .logo.flipped.rude { animation: none; }
 }
