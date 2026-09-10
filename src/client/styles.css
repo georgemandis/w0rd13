@@ -342,7 +342,7 @@ h2 { margin: 0 0 0.75rem; font-size: 1.6rem; line-height: 1.2; letter-spacing: -
 
 /* ---------- orbit mode ---------- */
 
-.orbit { position: relative; width: min(100%, 19rem); aspect-ratio: 1; margin: 0 auto 0.5rem; }
+.orbit { position: relative; width: min(100%, 21rem); aspect-ratio: 1; margin: 0 auto 0.5rem; }
 .orbit-centre {
   position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%);
   width: 5rem; height: 5rem; border-radius: 50%; display: grid; place-items: center;
@@ -357,13 +357,13 @@ h2 { margin: 0 0 0.75rem; font-size: 1.6rem; line-height: 1.2; letter-spacing: -
   font-weight: 600; text-transform: uppercase; letter-spacing: 0.06em; font-size: 0.8rem; white-space: nowrap;
   transition: left 0.6s, top 0.6s, opacity 0.4s; animation: orbit-in 0.5s ease both;
 }
-.orbit-old { opacity: 0.5; font-size: 0.7rem; padding: 0.2rem 0.5rem; }
-.orbit-dot { width: 0.55rem; height: 0.55rem; padding: 0; border-radius: 50%; background: var(--line); border-color: var(--line); color: transparent; font-size: 0; opacity: 0.9; }
-.orbit-dot:hover { width: auto; height: auto; padding: 0.2rem 0.5rem; border-radius: 999px; background: var(--bg); color: var(--text); font-size: 0.7rem; z-index: 2; }
-.orbit-guess { border-color: var(--miss); color: var(--miss); }
+.orbit-faded { font-size: calc(0.8rem - 0.06rem * min(var(--age, 1), 3)); padding: 0.2rem 0.5rem; }
+.orbit-faded:hover { opacity: 1 !important; z-index: 2; }
+.orbit-word:not(.orbit-faded):not(.orbit-guess) { z-index: 1; }
+.orbit-guess { border-color: var(--miss); color: var(--miss); font-size: 0.68rem; padding: 0.15rem 0.45rem; z-index: 2; }
 .orbit-cold { border-style: dashed; opacity: 0.7; }
 @keyframes orbit-in { from { opacity: 0; transform: translate(-50%, -50%) scale(0.8); } to { opacity: 1; transform: translate(-50%, -50%) scale(1); } }
-.orbit-old, .orbit-dot { animation: none; }
+.orbit-faded { animation: none; }
 
 /* ---------- keyboard ---------- */
 

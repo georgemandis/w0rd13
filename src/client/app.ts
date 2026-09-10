@@ -886,16 +886,21 @@ function orbitBoard(hub: string[], guesses: OrbitGuess[], reveal: { answer: stri
   };
   for (let k = 0; k < shown; k++) {
     const band = hub.slice((ORBIT_GUESSES - 1 - k) * per, (ORBIT_GUESSES - k) * per);
-    // The newest ring is full size, the one before it dims, anything older collapses to a dot (hover to read).
-    const age = reveal ? 0 : shown - 1 - k;
-    const cls = age === 0 ? "" : age === 1 ? " orbit-old" : " orbit-dot";
+    // Each older ring fades and shrinks a step further, so only the newest one competes for attention.
+    const age = shown - 1 - k;
+    const fade = age === 0 ? 1 : Math.max(0.12, 0.55 * 0.55 ** (age - 1));
     band.forEach((w, i) => {
-      board.append(h("div", { class: `orbit-word${cls}`, style: at(ORBIT_RADII[k]!, -90 + (360 / band.length) * i + k * 24), title: w }, w));
+      board.append(h("div", {
+        class: `orbit-word${age > 0 ? " orbit-faded" : ""}`,
+        style: `${at(ORBIT_RADII[k]!, -90 + (360 / band.length) * i + k * 24)}; opacity: ${fade.toFixed(2)}; --age: ${age}`,
+        title: w,
+      }, w));
     });
   }
   guesses.forEach((g, i) => {
     const radius = g.near === null ? 47 : 18 + (g.near / 25) * 26;
-    board.append(h("div", { class: `orbit-word orbit-guess${g.near === null ? " orbit-cold" : ""}`, style: at(radius, 200 + i * 47) }, g.word));
+    const age = guesses.length - 1 - i;
+    board.append(h("div", { class: `orbit-word orbit-guess${g.near === null ? " orbit-cold" : ""}`, style: `${at(radius, 200 + i * 47)}; opacity: ${Math.max(0.35, 1 - age * 0.2).toFixed(2)}` }, g.word));
   });
   return board;
 }
