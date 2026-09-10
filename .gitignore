@@ -1,0 +1,25 @@
+# dependencies
+node_modules/
+
+# build output
+dist/
+
+# cloudflare
+.wrangler/
+.dev.vars
+worker-configuration.d.ts
+
+# environment and secrets
+.env
+.env.*
+
+# logs and caches
+*.log
+.cache/
+coverage/
+
+# editors and OS
+.DS_Store
+.idea/
+.vscode/
+*.swp

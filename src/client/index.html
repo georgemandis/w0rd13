@@ -1,0 +1,36 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <title>w0rd13</title>
+    <script>
+      try { document.documentElement.dataset.theme = localStorage.getItem("w0rd13:theme") || "classic"; } catch {}
+    </script>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Libre+Franklin:wght@400;500;600;700;800&display=swap"
+      rel="stylesheet"
+    />
+    <link rel="stylesheet" href="./styles.css" />
+  </head>
+  <body>
+    <header class="top">
+      <h1 class="brand-wrap"><button class="brand" id="home-btn" type="button" aria-label="w0rd13 home">w0rd13</button></h1>
+      <nav class="modes" aria-label="Puzzle">
+        <button class="mode" data-mode="daily" aria-pressed="true">Daily</button>
+        <button class="mode" data-mode="bonus" aria-pressed="false">Bonus</button>
+        <div class="theme-menu" id="theme-menu">
+          <button class="theme-btn" id="theme-btn" type="button" aria-haspopup="menu" aria-expanded="false" aria-controls="theme-list">
+            <span class="swatch" id="theme-swatch" aria-hidden="true"></span><span id="theme-name">Classic</span><span class="caret" aria-hidden="true"></span>
+          </button>
+          <div class="theme-list" id="theme-list" role="menu" aria-label="Colour theme" hidden></div>
+        </div>
+      </nav>
+    </header>
+    <main id="app" class="app" aria-live="polite"></main>
+    <div id="toast" class="toast" role="status" hidden></div>
+    <script type="module" src="./app.ts"></script>
+  </body>
+</html>

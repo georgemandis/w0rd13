@@ -1,0 +1,18 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "w0rd13",
+  "main": "src/worker.ts",
+  "compatibility_date": "2026-08-01",
+  "workers_dev": true,
+  "routes": [
+    { "pattern": "w0rd13.lol", "custom_domain": true },
+    { "pattern": "www.w0rd13.lol", "custom_domain": true }
+  ],
+  "assets": {
+    "directory": "./dist",
+    "binding": "ASSETS",
+    "not_found_handling": "none",
+    "run_worker_first": ["/api/*"]
+  },
+  "observability": { "enabled": true }
+}
