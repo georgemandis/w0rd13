@@ -3,7 +3,8 @@ import { generatePuzzle, puzzleSeed, DIFFICULTIES, type Difficulty, type Puzzle 
 import { scoreGuess, isConsistent } from "./feedback";
 import { wordsForLength } from "../words";
 import { PACK_WORDS } from "../words/packs";
-import { PACKS } from "./config";
+import { PACKS, ORBIT_WORDS, ORBIT_GUESSES } from "./config";
+import { HUBS } from "../words/hubs";
 
 function expectValid(p: Puzzle, minClues: number) {
   const lists = wordsForLength(p.length);
@@ -107,6 +108,29 @@ describe("generatePuzzle", () => {
   test("a pack changes the seed and only works at five letters", () => {
     expect(puzzleSeed("2026-09-09", "daily", 5, "normal", "animals")).not.toBe(puzzleSeed("2026-09-09", "daily"));
     expect(() => generatePuzzle({ date: "2026-09-09", mode: "daily", length: 6, pack: "animals" })).toThrow();
+  });
+
+  test("orbit mode: five hub words with their neighbours, sized by difficulty", () => {
+    for (const difficulty of ["easy", "normal", "hard", "extreme"] as const) {
+      const p = generatePuzzle({ date: "2026-09-10", mode: "daily", kind: "orbit", difficulty });
+      expect(p.kind).toBe("orbit");
+      expect(p.rounds).toHaveLength(5);
+      expect(new Set(p.rounds.map((r) => r.answer)).size).toBe(5);
+      for (const r of p.rounds) {
+        expect(HUBS[r.answer]).toBeDefined();
+        expect(r.hub).toHaveLength(ORBIT_WORDS[difficulty] * ORBIT_GUESSES);
+        expect(r.hub!.includes(r.answer)).toBe(false);
+        expect(r.clues).toHaveLength(0);
+        expect(PACK_WORDS[r.theme!]!.includes(r.answer)).toBe(true);
+      }
+    }
+    expect(generatePuzzle({ date: "2026-09-10", mode: "daily", kind: "orbit" })).toEqual(generatePuzzle({ date: "2026-09-10", mode: "daily", kind: "orbit" }));
+    expect(puzzleSeed("2026-09-10", "daily", 5, "normal", "", "standard", "orbit")).not.toBe(puzzleSeed("2026-09-10", "daily"));
+  });
+
+  test("orbit mode respects a word theme", () => {
+    const p = generatePuzzle({ date: "2026-09-10", mode: "daily", kind: "orbit", pack: "animals" });
+    expect(p.rounds.every((r) => PACK_WORDS.animals!.includes(r.answer))).toBe(true);
   });
 
   test("the extremes: 3-letter extreme and 10-letter easy", () => {

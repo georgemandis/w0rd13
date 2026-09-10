@@ -336,6 +336,31 @@ h2 { margin: 0 0 0.75rem; font-size: 1.6rem; line-height: 1.2; letter-spacing: -
 }
 .verdict-time { font-variant-numeric: tabular-nums; color: var(--muted); }
 
+/* ---------- orbit mode ---------- */
+
+.orbit { position: relative; width: min(100%, 19rem); aspect-ratio: 1; margin: 0 auto 0.5rem; }
+.orbit-centre {
+  position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%);
+  width: 5rem; height: 5rem; border-radius: 50%; display: grid; place-items: center;
+  background: var(--text); color: var(--bg); font-size: 2rem; font-weight: 800;
+}
+.orbit-centre.orbit-win, .orbit-centre.orbit-miss { font-size: 0.95rem; text-transform: uppercase; letter-spacing: 0.08em; color: #fff; }
+.orbit-centre.orbit-win { background: var(--green); }
+.orbit-centre.orbit-miss { background: var(--miss); }
+.orbit-word {
+  position: absolute; transform: translate(-50%, -50%);
+  padding: 0.3rem 0.65rem; border: 1px solid var(--line); border-radius: 999px; background: var(--bg);
+  font-weight: 600; text-transform: uppercase; letter-spacing: 0.06em; font-size: 0.8rem; white-space: nowrap;
+  transition: left 0.6s, top 0.6s, opacity 0.4s; animation: orbit-in 0.5s ease both;
+}
+.orbit-old { opacity: 0.5; font-size: 0.7rem; padding: 0.2rem 0.5rem; }
+.orbit-dot { width: 0.55rem; height: 0.55rem; padding: 0; border-radius: 50%; background: var(--line); border-color: var(--line); color: transparent; font-size: 0; opacity: 0.9; }
+.orbit-dot:hover { width: auto; height: auto; padding: 0.2rem 0.5rem; border-radius: 999px; background: var(--bg); color: var(--text); font-size: 0.7rem; z-index: 2; }
+.orbit-guess { border-color: var(--miss); color: var(--miss); }
+.orbit-cold { border-style: dashed; opacity: 0.7; }
+@keyframes orbit-in { from { opacity: 0; transform: translate(-50%, -50%) scale(0.8); } to { opacity: 1; transform: translate(-50%, -50%) scale(1); } }
+.orbit-old, .orbit-dot { animation: none; }
+
 /* ---------- keyboard ---------- */
 
 .keyboard { display: grid; gap: 0.4rem; margin-top: 0.5rem; }
@@ -459,5 +484,6 @@ h2 { margin: 0 0 0.75rem; font-size: 1.6rem; line-height: 1.2; letter-spacing: -
 @media (prefers-reduced-motion: reduce) {
   .row-win .tile, .row-miss .tile, .shake, .boom, .quake, .clock-danger { animation: none; }
   .logo-inner { transition: none; }
+  .orbit-word { animation: none; transition: none; }
   .logo.flipped.rude { animation: none; }
 }

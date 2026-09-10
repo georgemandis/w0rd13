@@ -1,8 +1,9 @@
 import { wordsForLength } from "../words";
 import { PACK_WORDS } from "../words/packs";
+import { HUBS } from "../words/hubs";
 import { scoreGuess, isConsistent, type Feedback } from "./feedback";
 import { hashString, mulberry32, pick } from "./rng";
-import { DIFFICULTIES, DEFAULT_DIFFICULTY, DEFAULT_LENGTH, DEFAULT_VOCAB, ROUNDS_PER_PUZZLE, type Difficulty, type Mode, type Vocab } from "./config";
+import { DIFFICULTIES, DEFAULT_DIFFICULTY, DEFAULT_LENGTH, DEFAULT_VOCAB, DEFAULT_KIND, ORBIT_GUESSES, ORBIT_WORDS, PACKS, ROUNDS_PER_PUZZLE, type Difficulty, type Kind, type Mode, type Vocab } from "./config";
 
 export { DIFFICULTIES, DEFAULT_DIFFICULTY, DEFAULT_LENGTH, ROUNDS_PER_PUZZLE, localDateString, type Difficulty, type Mode } from "./config";
 
@@ -15,6 +16,8 @@ export interface PuzzleOptions {
   pack?: string;
   /** "everyday" restricts answers to the most common spoken words. Ignored when a pack is set. */
   vocab?: Vocab;
+  /** "orbit": rounds show a ring of neighbouring words instead of coloured clues. */
+  kind?: Kind;
 }
 
 export interface Clue {
@@ -25,6 +28,10 @@ export interface Clue {
 export interface Round {
   answer: string;
   clues: Clue[];
+  /** Orbit mode: the neighbouring words shown around the secret, nearest first. Rings reveal from the far end. */
+  hub?: string[];
+  /** Orbit mode: a theme pack the secret belongs to, shown as a category hint. */
+  theme?: string;
 }
 
 export interface Puzzle {
@@ -34,6 +41,7 @@ export interface Puzzle {
   difficulty: Difficulty;
   pack: string;
   vocab: Vocab;
+  kind: Kind;
   rounds: Round[];
 }
 
@@ -41,10 +49,29 @@ const MAX_CLUES = 6;
 const SAMPLE_SIZE = 120;
 const FINISHER_BUDGET = 4000;
 
-export function puzzleSeed(date: string, mode: Mode, length = DEFAULT_LENGTH, difficulty: Difficulty = DEFAULT_DIFFICULTY, pack = "", vocab: Vocab = DEFAULT_VOCAB): number {
+export function puzzleSeed(date: string, mode: Mode, length = DEFAULT_LENGTH, difficulty: Difficulty = DEFAULT_DIFFICULTY, pack = "", vocab: Vocab = DEFAULT_VOCAB, kind: Kind = DEFAULT_KIND): number {
   const variant = length === DEFAULT_LENGTH && difficulty === DEFAULT_DIFFICULTY ? "" : `:${length}:${difficulty}`;
   const extra = pack ? `:${pack}` : vocab === "everyday" ? ":everyday" : "";
-  return hashString(`w0rd13:${mode}:${date}${variant}${extra}`);
+  return hashString(`w0rd13:${mode}:${date}${variant}${extra}${kind === "orbit" ? ":orbit" : ""}`);
+}
+
+/** Orbit mode: five secret words, each shown with its nearest neighbours in meaning. */
+function generateOrbit(date: string, mode: Mode, difficulty: Difficulty, pack: string): Puzzle {
+  const all = Object.keys(HUBS);
+  const inPack = pack ? all.filter((w) => PACK_WORDS[pack]?.includes(w)) : all;
+  const pool = inPack.length >= ROUNDS_PER_PUZZLE ? inPack : all;
+  const rand = mulberry32(puzzleSeed(date, mode, DEFAULT_LENGTH, difficulty, pack, DEFAULT_VOCAB, "orbit"));
+  const rounds: Round[] = [];
+  const used = new Set<string>();
+  while (rounds.length < ROUNDS_PER_PUZZLE) {
+    const answer = pick(rand, pool);
+    if (used.has(answer)) continue;
+    used.add(answer);
+    const themes = Object.keys(PACK_WORDS).filter((id) => !PACKS[id]?.loose && PACK_WORDS[id]!.includes(answer));
+    const theme = pack && themes.includes(pack) ? pack : pick(rand, themes);
+    rounds.push({ answer, clues: [], hub: HUBS[answer]!.slice(0, ORBIT_GUESSES * ORBIT_WORDS[difficulty]), theme });
+  }
+  return { date, mode, length: DEFAULT_LENGTH, difficulty, pack, vocab: DEFAULT_VOCAB, kind: "orbit", rounds };
 }
 
 function survivorsAfter(candidates: string[], answer: string, word: string, feedback: Feedback): string[] {
@@ -101,7 +128,8 @@ function buildRound(answer: string, targetClues: number, candidates: string[], a
   return null;
 }
 
-export function generatePuzzle({ date, mode, length = DEFAULT_LENGTH, difficulty = DEFAULT_DIFFICULTY, pack = "", vocab = DEFAULT_VOCAB }: PuzzleOptions): Puzzle {
+export function generatePuzzle({ date, mode, length = DEFAULT_LENGTH, difficulty = DEFAULT_DIFFICULTY, pack = "", vocab = DEFAULT_VOCAB, kind = DEFAULT_KIND }: PuzzleOptions): Puzzle {
+  if (kind === "orbit") return generateOrbit(date, mode, difficulty, pack);
   const { answers, allowed, easy } = wordsForLength(length);
   let candidates = answers;
   if (pack) {
@@ -126,5 +154,5 @@ export function generatePuzzle({ date, mode, length = DEFAULT_LENGTH, difficulty
     used.add(answer);
     rounds.push(round);
   }
-  return { date, mode, length, difficulty, pack, vocab, rounds };
+  return { date, mode, length, difficulty, pack, vocab, kind, rounds };
 }

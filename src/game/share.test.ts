@@ -13,6 +13,8 @@ describe("variantLabel", () => {
     expect(variantLabel(5, "normal", "stopwatch", "", "everyday")).toBe("everyday");
     expect(variantLabel(6, "hard", "countdown", "", "everyday")).toBe("6 letters, everyday, hard, countdown");
     expect(variantLabel(5, "normal", "stopwatch", "animals", "everyday")).toBe("Animals");
+    expect(variantLabel(5, "normal", "stopwatch", "", "standard", "orbit")).toBe("orbit");
+    expect(variantLabel(5, "hard", "countdown", "animals", "standard", "orbit")).toBe("orbit, Animals, hard, countdown");
   });
 });
 

@@ -1,17 +1,19 @@
 import type { Feedback, Mark } from "../game/feedback";
 import {
   DIFFICULTIES, DEFAULT_DIFFICULTY, DEFAULT_LENGTH, MIN_LENGTH, MAX_LENGTH, DEFAULT_CLOCK,
-  COUNTDOWN_BUDGET_MS, COUNTDOWN_PENALTY_MS, PACKS, VOCABS, DEFAULT_VOCAB,
-  isClock, isDifficulty, isLength, isPack, isVocab, localDateString, packAllowsDigits, variantLabel,
-  type Clock, type Difficulty, type Mode, type Vocab,
+  COUNTDOWN_BUDGET_MS, COUNTDOWN_PENALTY_MS, PACKS, VOCABS, DEFAULT_VOCAB, KINDS, DEFAULT_KIND, ORBIT_WORDS, ORBIT_GUESSES,
+  isClock, isDifficulty, isKind, isLength, isPack, isVocab, localDateString, packAllowsDigits, variantLabel,
+  type Clock, type Difficulty, type Kind, type Mode, type Vocab,
 } from "../game/config";
 import { buildShareText, formatPuzzleDate, formatTime, pickAward, squareFor, type RoundResult } from "../game/share";
 import { celebrateRound, commiserateRound, finishRun } from "./effects";
 
 interface Clue { word: string; feedback: Feedback }
-interface ClientPuzzle { date: string; mode: Mode; length: number; difficulty: Difficulty; pack: string; vocab: Vocab; rounds: { clues: Clue[] }[] }
-interface GuessResponse { valid: boolean; correct?: boolean; answer?: string; feedback?: Feedback }
-interface FinishedRound extends RoundResult { guess: string; answer: string; feedback: Feedback }
+interface ClientPuzzle { date: string; mode: Mode; length: number; difficulty: Difficulty; pack: string; vocab: Vocab; kind: Kind; rounds: { clues: Clue[]; hub?: string[]; theme?: string }[] }
+interface GuessResponse { valid: boolean; correct?: boolean; answer?: string; feedback?: Feedback; near?: number | null }
+interface FinishedRound extends RoundResult { guess: string; answer: string; feedback: Feedback; tries?: number }
+/** Orbit mode: a wrong guess, how close it was in meaning (rank among the 25 nearest, or null for cold), and its letter feedback. */
+interface OrbitGuess { word: string; near: number | null; feedback: Feedback }
 
 type Phase = "loading" | "intro" | "playing" | "revealed" | "exploded" | "done";
 
@@ -22,6 +24,7 @@ interface State {
   clock: Clock;
   pack: string;
   vocab: Vocab;
+  kind: Kind;
   budgetMs: number;
   penaltyMs: number;
   /** Time left recorded when a countdown run ended; used instead of the live clock once done. */
@@ -36,6 +39,8 @@ interface State {
   award: string;
   note: string;
   confirmingQuit: boolean;
+  /** Orbit mode: wrong guesses so far on this word; the ring reveals one band per miss. */
+  orbitGuesses: OrbitGuess[];
   submitting: boolean;
 }
 
@@ -99,7 +104,7 @@ const THEME_KEY = "w0rd13:theme";
  * Game settings live in the URL so a setup can be shared: ?letters=7&difficulty=extreme&pack=animals&clock=countdown&mode=bonus
  * Defaults (5 letters, normal, mixed, stopwatch, daily) are omitted, so a bare URL is always the standard game.
  */
-interface Settings { mode: Mode; length: number; difficulty: Difficulty; clock: Clock; pack: string; vocab: Vocab }
+interface Settings { mode: Mode; length: number; difficulty: Difficulty; clock: Clock; pack: string; vocab: Vocab; kind: Kind }
 
 const TODAY = localDateString();
 
@@ -119,16 +124,22 @@ function readUrlSettings(): Settings {
     clock: isClock(q.get("clock")) ? (q.get("clock") as Clock) : DEFAULT_CLOCK,
     pack: isPack(q.get("pack")) ? q.get("pack")! : "",
     vocab: isVocab(q.get("vocab")) ? (q.get("vocab") as Vocab) : DEFAULT_VOCAB,
+    kind: isKind(q.get("game")) ? (q.get("game") as Kind) : DEFAULT_KIND,
   };
+}
+
+function isOrbit(): boolean {
+  return state.kind === "orbit";
 }
 
 function settingsUrl(): string {
   const q = new URLSearchParams();
   if (state.mode !== "daily") q.set("mode", state.mode);
-  if (state.length !== DEFAULT_LENGTH) q.set("letters", String(state.length));
+  if (state.kind !== DEFAULT_KIND) q.set("game", state.kind);
+  if (state.length !== DEFAULT_LENGTH && !isOrbit()) q.set("letters", String(state.length));
   if (state.difficulty !== DEFAULT_DIFFICULTY) q.set("difficulty", state.difficulty);
   if (activePack()) q.set("pack", activePack());
-  if (state.vocab !== DEFAULT_VOCAB && !activePack()) q.set("vocab", state.vocab);
+  if (state.vocab !== DEFAULT_VOCAB && !activePack() && !isOrbit()) q.set("vocab", state.vocab);
   if (state.clock !== DEFAULT_CLOCK) q.set("clock", state.clock);
   if (state.date !== TODAY) q.set("date", state.date);
   const budget = new URLSearchParams(location.search).get("budget");
@@ -161,7 +172,7 @@ function track(event: string, props: Record<string, string | number | boolean> =
 
 function setupProps(): Record<string, string | number> {
   const s = currentSettings();
-  return { mode: s.mode, letters: s.length, difficulty: s.difficulty, clock: s.clock, pack: s.pack || "mixed", vocab: s.vocab };
+  return { mode: s.mode, game: s.kind, letters: s.length, difficulty: s.difficulty, clock: s.clock, pack: s.pack || "mixed", vocab: s.vocab };
 }
 const toastEl = document.getElementById("toast")!;
 const KEY_ROWS = ["qwertyuiop", "asdfghjkl", "zxcvbnm"];
@@ -182,6 +193,7 @@ const state: State = {
   award: "",
   note: "",
   confirmingQuit: false,
+  orbitGuesses: [],
   submitting: false,
 };
 
@@ -190,13 +202,17 @@ let toastHandle = 0;
 
 // ---------- persistence (one play per puzzle per browser) ----------
 
-/** Word themes only exist for five-letter words. */
+/** Word themes only exist for five-letter words (and Orbit is always five letters). */
 function activePack(): string {
-  return state.length === DEFAULT_LENGTH ? state.pack : "";
+  return state.length === DEFAULT_LENGTH || isOrbit() ? state.pack : "";
+}
+
+function activeLength(): number {
+  return isOrbit() ? DEFAULT_LENGTH : state.length;
 }
 
 function variant(): string {
-  return variantLabel(state.length, state.difficulty, state.clock, activePack(), state.vocab);
+  return variantLabel(activeLength(), state.difficulty, state.clock, activePack(), state.vocab, state.kind);
 }
 
 function isCountdown(): boolean {
@@ -205,19 +221,21 @@ function isCountdown(): boolean {
 
 function puzzleQuery(): string {
   const pack = activePack() ? `&pack=${activePack()}` : "";
-  const vocab = state.vocab !== DEFAULT_VOCAB && !activePack() ? `&vocab=${state.vocab}` : "";
-  return `date=${state.date}&mode=${state.mode}&length=${state.length}&difficulty=${state.difficulty}${pack}${vocab}`;
+  const vocab = state.vocab !== DEFAULT_VOCAB && !activePack() && !isOrbit() ? `&vocab=${state.vocab}` : "";
+  const kind = isOrbit() ? "&kind=orbit" : "";
+  return `date=${state.date}&mode=${state.mode}&length=${activeLength()}&difficulty=${state.difficulty}${pack}${vocab}${kind}`;
 }
 
 /** The settings that identify a game (a pack overrides vocabulary, and only applies at five letters). */
 function currentSettings(): Settings {
   const pack = activePack();
-  return { mode: state.mode, length: state.length, difficulty: state.difficulty, clock: state.clock, pack, vocab: pack ? DEFAULT_VOCAB : state.vocab };
+  return { mode: state.mode, length: activeLength(), difficulty: state.difficulty, clock: state.clock, pack, vocab: pack || isOrbit() ? DEFAULT_VOCAB : state.vocab, kind: state.kind };
 }
 
 /** One finished game per date and settings combination. */
 function gameKey(date: string, s: Settings): string {
-  return `w0rd13:game:${date}:${s.mode}:${s.length}:${s.difficulty}:${s.clock}:${s.pack || "-"}:${s.vocab}`;
+  const kind = (s.kind ?? DEFAULT_KIND) === DEFAULT_KIND ? "" : `:${s.kind}`;
+  return `w0rd13:game:${date}:${s.mode}:${s.length}:${s.difficulty}:${s.clock}:${s.pack || "-"}:${s.vocab}${kind}`;
 }
 
 function storageKey(): string {
@@ -280,7 +298,7 @@ function isPerfect(g: SavedGame): boolean {
 }
 
 function isStandard(s: Settings): boolean {
-  return s.mode === "daily" && s.length === DEFAULT_LENGTH && s.difficulty === DEFAULT_DIFFICULTY && s.clock === DEFAULT_CLOCK && !s.pack && s.vocab === DEFAULT_VOCAB;
+  return s.mode === "daily" && (s.kind ?? DEFAULT_KIND) === DEFAULT_KIND && s.length === DEFAULT_LENGTH && s.difficulty === DEFAULT_DIFFICULTY && s.clock === DEFAULT_CLOCK && !s.pack && s.vocab === DEFAULT_VOCAB;
 }
 
 function shiftDate(iso: string, days: number): string {
@@ -333,7 +351,7 @@ function goToDate(date: string, settings?: Settings): void {
 }
 
 function settingsLabel(s: Settings): string {
-  const v = variantLabel(s.length, s.difficulty, s.clock, s.pack, s.vocab);
+  const v = variantLabel(s.length, s.difficulty, s.clock, s.pack, s.vocab, s.kind ?? DEFAULT_KIND);
   return `${s.mode === "bonus" ? "Bonus" : "Daily"}${v ? `, ${v}` : ""}`;
 }
 
@@ -470,10 +488,11 @@ async function submitGuess(): Promise<void> {
   state.submitting = true;
   setChecking(true);
   const elapsed = performance.now() - state.roundStart;
+  const final = !isOrbit() || state.orbitGuesses.length + 1 >= ORBIT_GUESSES;
   const res = await fetch(`/api/guess?${puzzleQuery()}`, {
     method: "POST",
     headers: { "content-type": "application/json" },
-    body: JSON.stringify({ round: state.round, guess: state.input }),
+    body: JSON.stringify({ round: state.round, guess: state.input, final }),
   });
   const data = (await res.json().catch(() => ({ valid: false }))) as GuessResponse;
   state.submitting = false;
@@ -483,6 +502,19 @@ async function submitGuess(): Promise<void> {
     shake("Not in the word list");
     return;
   }
+  if (isOrbit() && !data.correct && !final) {
+    // A miss with tries left: mark it on the orbit, reveal the next ring, keep the clock running.
+    state.orbitGuesses.push({ word: state.input, near: data.near ?? null, feedback: data.feedback ?? [] });
+    const guessed = state.input;
+    state.input = "";
+    if (isCountdown()) {
+      state.penaltyMs += COUNTDOWN_PENALTY_MS;
+      if (timeLeftMs() <= 0) return explode();
+    }
+    render();
+    toast(`${guessed.toUpperCase()} is ${orbitHeat(data.near ?? null)}. ${ORBIT_GUESSES - state.orbitGuesses.length} left.`);
+    return;
+  }
   stopTimer();
   state.results.push({
     guess: state.input,
@@ -490,6 +522,7 @@ async function submitGuess(): Promise<void> {
     correct: data.correct!,
     feedback: data.feedback!,
     ms: Math.round(elapsed),
+    ...(isOrbit() ? { tries: state.orbitGuesses.length + 1 } : {}),
   });
   if (isCountdown() && !data.correct) {
     state.penaltyMs += COUNTDOWN_PENALTY_MS;
@@ -635,6 +668,7 @@ function startRound(index: number): void {
   state.round = index;
   state.input = "";
   state.confirmingQuit = false;
+  state.orbitGuesses = [];
   state.phase = "playing";
   state.roundStart = performance.now();
   render();
@@ -825,6 +859,47 @@ function wordRow(word: string, feedback: Feedback, extra = ""): HTMLElement {
   return row;
 }
 
+function orbitHeat(near: number | null): string {
+  if (near === null) return "cold";
+  if (near <= 3) return "burning";
+  if (near <= 8) return "hot";
+  if (near <= 15) return "warm";
+  return "lukewarm";
+}
+
+/** Ring radius (percent of the board) for band k, where 0 is the farthest band and the last is the nearest. */
+const ORBIT_RADII = [44, 37, 30.5, 24, 18];
+
+/**
+ * Orbit mode board. `hub` lists neighbours nearest first; the ring reveals from the far end, one band per
+ * miss, so the words edge inward. Wrong guesses sit on the orbit at their own distance, or outside if cold.
+ */
+function orbitBoard(hub: string[], guesses: OrbitGuess[], reveal: { answer: string; correct: boolean } | null): HTMLElement {
+  const board = h("div", { class: "orbit" });
+  const per = ORBIT_WORDS[state.puzzle!.difficulty];
+  const shown = reveal ? ORBIT_GUESSES : Math.min(ORBIT_GUESSES, guesses.length + 1);
+  const centre = h("div", { class: `orbit-centre${reveal ? (reveal.correct ? " orbit-win" : " orbit-miss") : ""}` }, reveal ? reveal.answer : "?");
+  board.append(centre);
+  const at = (radius: number, deg: number) => {
+    const a = (deg * Math.PI) / 180;
+    return `left: ${50 + Math.cos(a) * radius}%; top: ${50 + Math.sin(a) * radius}%`;
+  };
+  for (let k = 0; k < shown; k++) {
+    const band = hub.slice((ORBIT_GUESSES - 1 - k) * per, (ORBIT_GUESSES - k) * per);
+    // The newest ring is full size, the one before it dims, anything older collapses to a dot (hover to read).
+    const age = reveal ? 0 : shown - 1 - k;
+    const cls = age === 0 ? "" : age === 1 ? " orbit-old" : " orbit-dot";
+    band.forEach((w, i) => {
+      board.append(h("div", { class: `orbit-word${cls}`, style: at(ORBIT_RADII[k]!, -90 + (360 / band.length) * i + k * 24), title: w }, w));
+    });
+  }
+  guesses.forEach((g, i) => {
+    const radius = g.near === null ? 47 : 18 + (g.near / 25) * 26;
+    board.append(h("div", { class: `orbit-word orbit-guess${g.near === null ? " orbit-cold" : ""}`, style: at(radius, 200 + i * 47) }, g.word));
+  });
+  return board;
+}
+
 function inputRow(): HTMLElement {
   const len = state.puzzle!.length;
   const row = h("div", { class: "row row-input", id: "input-row", style: `--len: ${len}` });
@@ -893,13 +968,23 @@ function puzzleLabel(): string {
 }
 
 function settingsPanel(): HTMLElement {
+  const kindSel = h("select", { id: "kind", "aria-label": "Game" }) as HTMLSelectElement;
+  for (const [id, k] of Object.entries(KINDS)) {
+    kindSel.append(h("option", { value: id, ...(id === state.kind ? { selected: "" } : {}) }, k.name));
+  }
+  kindSel.addEventListener("change", () => {
+    state.kind = isKind(kindSel.value) ? kindSel.value : DEFAULT_KIND;
+    syncUrl();
+    state.phase = "intro";
+    void loadPuzzle();
+  });
   const lengthSel = h("select", { id: "length", "aria-label": "Word length" }) as HTMLSelectElement;
   for (let n = MIN_LENGTH; n <= MAX_LENGTH; n++) {
     lengthSel.append(h("option", { value: String(n), ...(n === state.length ? { selected: "" } : {}) }, `${n} letters`));
   }
   const diffSel = h("select", { id: "difficulty", "aria-label": "Difficulty" }) as HTMLSelectElement;
   for (const [id, d] of Object.entries(DIFFICULTIES)) {
-    const clues = d.clues === 1 ? "1 clue" : `${d.clues} clues`;
+    const clues = isOrbit() ? `${ORBIT_WORDS[id as Difficulty]} per ring` : d.clues === 1 ? "1 clue" : `${d.clues} clues`;
     diffSel.append(h("option", { value: id, ...(id === state.difficulty ? { selected: "" } : {}) }, `${d.label}, ${clues}`));
   }
   lengthSel.addEventListener("change", () => {
@@ -947,11 +1032,14 @@ function settingsPanel(): HTMLElement {
     const ok = await copy(settingsUrl());
     toast(ok ? "Link copied" : "Couldn't copy. Grab it from the address bar.");
   });
+  const orbit = isOrbit();
   return h("div", { class: "settings" },
-    h("label", { class: "setting" }, h("span", { class: "muted small" }, "Word length"), lengthSel),
-    h("label", { class: "setting" }, h("span", { class: "muted small" }, "Difficulty"), diffSel),
+    // Orbit is a secret mode for now: the Game control only appears once you've arrived via ?game=orbit.
+    h("label", { class: "setting setting-wide", ...(orbit ? {} : { hidden: "" }) }, h("span", { class: "muted small" }, "Game"), kindSel, h("span", { class: "muted small" }, KINDS[state.kind].blurb)),
+    h("label", { class: "setting", ...(orbit ? { hidden: "" } : {}) }, h("span", { class: "muted small" }, "Word length"), lengthSel),
+    h("label", { class: `setting${orbit ? " setting-wide" : ""}` }, h("span", { class: "muted small" }, "Difficulty"), diffSel),
     h("label", { class: "setting setting-wide" }, h("span", { class: "muted small" }, "Word theme"), packSel, h("span", { class: "muted small", id: "pack-note" }, packNote())),
-    h("label", { class: "setting setting-wide" }, h("span", { class: "muted small" }, "Vocabulary"), vocabSel, h("span", { class: "muted small", id: "vocab-note" }, vocabNote())),
+    h("label", { class: "setting setting-wide", ...(orbit ? { hidden: "" } : {}) }, h("span", { class: "muted small" }, "Vocabulary"), vocabSel, h("span", { class: "muted small", id: "vocab-note" }, vocabNote())),
     h("label", { class: "setting setting-wide" }, h("span", { class: "muted small" }, "Clock"), clockSel),
     link,
   );
@@ -988,6 +1076,7 @@ function pastDayNotice(): HTMLElement {
 }
 
 function packNote(): string {
+  if (isOrbit()) return state.pack ? `Secret words come from ${PACKS[state.pack]!.name}` : "Pick a theme to keep the secret words on topic";
   if (state.length !== DEFAULT_LENGTH) return "Themes are five-letter only";
   return state.pack ? PACKS[state.pack]!.blurb : "Themes narrow the field, so the clues get sneakier";
 }
@@ -998,6 +1087,13 @@ function vocabNote(): string {
 }
 
 function introText(): string {
+  if (isOrbit()) {
+    const per = ORBIT_WORDS[state.difficulty];
+    const ring = per === 1 ? "one word" : `${per} words`;
+    return isCountdown()
+      ? `Words related to a secret word orbit it, farthest first. Each miss reveals ${ring} closer in. ${ORBIT_GUESSES} guesses per word. You have ${formatTime(state.budgetMs)} for all five, a wrong guess burns ${formatTime(COUNTDOWN_PENALTY_MS)}, and at zero the whole thing blows up.`
+      : `Words related to a secret word orbit it, farthest first. Each miss reveals ${ring} closer in, colours the letters you guessed, and lands your guess where it belongs. You're told the category. ${ORBIT_GUESSES} guesses per word, and the clock runs the whole time.`;
+  }
   return isCountdown()
     ? `Each word comes with a few guesses already played. Read the colours, work out the only word that fits, and type it. You have ${formatTime(state.budgetMs)} for all five, a wrong guess burns ${formatTime(COUNTDOWN_PENALTY_MS)}, and at zero the whole thing blows up.`
     : "Each word comes with a few guesses already played. Read the colours, work out the only word that fits, and type it. You get one shot per word and the clock runs the whole time.";
@@ -1098,6 +1194,8 @@ function refreshIntro(): void {
   set("intro-label", puzzleLabel());
   set("intro-text", introText());
   set("pack-note", packNote());
+  const legend = document.getElementById("legend");
+  if (legend) legend.hidden = isOrbit();
   set("vocab-note", vocabNote());
   set("start-btn", startLabel());
   const bonusNote = document.getElementById("bonus-note");
@@ -1120,7 +1218,7 @@ function renderIntro(): void {
       h("h2", {}, "Five words. One guess each."),
       h("p", { id: "intro-text" }, introText()),
       h("p", { class: "muted small", id: "bonus-note", hidden: "" }, "Bonus is just another game for the same day. Different seed, nothing else changes."),
-      h("div", { class: "legend" },
+      h("div", { class: "legend", id: "legend", ...(isOrbit() ? { hidden: "" } : {}) },
         wordRow("crane", ["x", "y", "x", "g", "x"]),
         h("p", { class: "muted", id: "legend-text" }, legendText()),
       ),
@@ -1144,24 +1242,29 @@ function renderRound(): void {
 
   const board = h("section", { class: "board" });
   const pack = state.puzzle!.pack ? PACKS[state.puzzle!.pack] : null;
+  const theme = !pack && round.theme ? PACKS[round.theme] : null;
   board.append(
     h("div", { class: "status" },
       h("span", { class: "status-left" },
         h("span", { class: "muted" }, `Word ${state.round + 1} of ${state.puzzle!.rounds.length}`),
-        ...(pack ? [h("span", { class: "pack-chip" }, pack.name)] : []),
+        ...(pack ? [h("span", { class: "pack-chip" }, pack.name)] : theme ? [h("span", { class: "pack-chip" }, `A ${theme.name} word`)] : []),
       ),
       clock(),
     ),
   );
   const rows = h("div", { class: "rows" });
+  if (round.hub) rows.append(orbitBoard(round.hub, state.orbitGuesses, result ? { answer: result.answer, correct: result.correct } : null));
   for (const c of round.clues) rows.append(wordRow(c.word, c.feedback));
+  // Orbit: earlier misses stack up as ordinary coloured rows, so spelling narrows things too.
+  for (const g of state.orbitGuesses) rows.append(wordRow(g.word, g.feedback));
 
   if (result) {
     rows.append(wordRow(result.guess, result.feedback, result.correct ? "row-win" : "row-miss"));
     const verdict = h("p", { class: "verdict" });
     const penalty = isCountdown() && !result.correct ? `, ${formatTime(COUNTDOWN_PENALTY_MS)} burned` : "";
+    const got = result.tries && result.tries > 1 ? `Got it in ${result.tries}` : "Got it";
     verdict.append(
-      h("strong", {}, result.correct ? "Got it" : `It was ${result.answer.toUpperCase()}${penalty}`),
+      h("strong", {}, result.correct ? got : `It was ${result.answer.toUpperCase()}${penalty}`),
       h("span", { class: "verdict-time" }, formatTime(result.ms)),
     );
     const isLast = state.round + 1 >= state.puzzle!.rounds.length;
@@ -1173,7 +1276,8 @@ function renderRound(): void {
     next.focus();
   } else {
     rows.append(inputRow());
-    board.append(rows, keyboard(round.clues), giveUpControls());
+    const known: Clue[] = [...round.clues, ...state.orbitGuesses.map((g) => ({ word: g.word, feedback: g.feedback }))];
+    board.append(rows, keyboard(known), giveUpControls());
     app.append(board);
   }
 }
@@ -1224,7 +1328,7 @@ function renderResults(): void {
     const li = h("li", { class: `bd ${i === slowest && results.length > 1 && !r.exploded ? "bd-slowest" : ""}`.trim() });
     const note = r.gaveUp
       ? (r.ms > 0 ? "gave up here" : "never reached")
-      : r.exploded ? "boom" : r.correct ? (i === slowest ? "slowest" : "") : `you said ${r.guess.toUpperCase()}`;
+      : r.exploded ? "boom" : r.correct ? (r.tries && r.tries > 1 ? `in ${r.tries}` : i === slowest ? "slowest" : "") : `you said ${r.guess.toUpperCase()}`;
     li.append(
       square(r),
       h("span", { class: "bd-time" }, formatTime(r.ms)),
