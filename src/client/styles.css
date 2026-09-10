@@ -161,6 +161,7 @@
 :root[data-theme="clown"] .mode[aria-pressed="true"] { border-bottom-color: #e63946; }
 
 * { box-sizing: border-box; }
+button, .kb, .tile { touch-action: manipulation; }
 
 html, body { margin: 0; background: var(--bg); color: var(--text); }
 
