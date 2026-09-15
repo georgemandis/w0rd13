@@ -14,6 +14,10 @@ bun test
 bun scripts/build-words.ts   # regenerate the 3-10 letter word lists
 ```
 
+## Orbit (secret mode, in progress)
+
+Open `/?game=orbit` for a second game built on word meaning. Words related to a secret word orbit it, farthest first; each miss reveals a closer ring, colours the letters you guessed, and lands your guess on the orbit at its own distance. You're told the category, and get five guesses per word. Neighbours come from `src/words/hubs.ts`, precomputed once by `proto/orbit/build-hubs.ts` from a rank-averaged blend of GloVe and a BGE embedding (see `proto/orbit/` for the scripts; the vector files are not committed). The Game control in settings only appears once you've arrived via that link.
+
 ## Deploy to Cloudflare
 
 Live at https://w0rd13.lol (and https://w0rd13.george-mandis.workers.dev). The game runs as a Cloudflare Worker with static assets: the client is built into `dist/` and served by the platform, and only `/api/*` reaches the Worker (`src/worker.ts`), which shares its request handling with the Bun server via `src/api.ts`. Puzzle responses are cached at the edge for an hour.

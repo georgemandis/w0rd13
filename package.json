@@ -14,9 +14,19 @@
   "devDependencies": {
     "@types/bun": "latest",
     "@types/canvas-confetti": "^1.9.0",
+    "@types/d3-drag": "^3.0.7",
+    "@types/d3-force": "^3.0.10",
+    "@types/d3-selection": "^3.0.12",
+    "@types/d3-transition": "^3.0.9",
+    "@types/d3-zoom": "^3.0.8",
     "wrangler": "^4.130.0"
   },
   "dependencies": {
-    "canvas-confetti": "^1.9.4"
+    "canvas-confetti": "^1.9.4",
+    "d3-drag": "^3.0.0",
+    "d3-force": "^3.0.0",
+    "d3-selection": "^3.0.0",
+    "d3-transition": "^3.0.1",
+    "d3-zoom": "^3.0.0"
   }
 }

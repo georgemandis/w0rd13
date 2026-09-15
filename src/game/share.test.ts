@@ -13,6 +13,8 @@ describe("variantLabel", () => {
     expect(variantLabel(5, "normal", "stopwatch", "", "everyday")).toBe("everyday");
     expect(variantLabel(6, "hard", "countdown", "", "everyday")).toBe("6 letters, everyday, hard, countdown");
     expect(variantLabel(5, "normal", "stopwatch", "animals", "everyday")).toBe("Animals");
+    expect(variantLabel(5, "normal", "stopwatch", "", "standard", "orbit")).toBe("orbit");
+    expect(variantLabel(5, "hard", "countdown", "animals", "standard", "orbit")).toBe("orbit, Animals, hard, countdown");
   });
 });
 
@@ -151,5 +153,17 @@ describe("buildShareText", () => {
     expect(text.split("\n")[2]).toBe("🟩⬛🟩🟩⬛ 1:50");
     expect(text.split("\n")[4]).toBe("🟩 0:05");
     expect(text.split("\n")[5]).toBe("⬛ 1:05");
+  });
+});
+
+describe("orbit tries in the breakdown", () => {
+  test("each word shows how many guesses it took", () => {
+    const results = [
+      { correct: true, ms: 7_000, tries: 1 },
+      { correct: true, ms: 34_000, tries: 3 },
+      { correct: false, ms: 50_000, tries: 5 },
+    ];
+    const text = buildShareText({ date: "2026-09-14", mode: "daily", results, variant: "orbit" });
+    expect(text.split("\n").slice(4)).toEqual(["🟩 0:07 in 1", "🟩 0:34 in 3", "⬛ 0:50 in 5"]);
   });
 });

@@ -2,6 +2,20 @@ export type Mode = "daily" | "bonus";
 export type Difficulty = "easy" | "normal" | "hard" | "extreme";
 export type Clock = "stopwatch" | "countdown";
 export type Vocab = "standard" | "everyday";
+export type Kind = "clues" | "orbit";
+
+export const DEFAULT_KIND: Kind = "clues";
+export const KINDS: Record<Kind, { name: string; blurb: string }> = {
+  clues: { name: "Clues", blurb: "Read the coloured guesses already played and name the word." },
+  orbit: { name: "Orbit", blurb: "Words that orbit a secret word. Name the word in the middle." },
+};
+/** Orbit mode: guesses per word, and how many neighbours each ring reveals, by difficulty. */
+export const ORBIT_GUESSES = 5;
+export const ORBIT_WORDS: Record<Difficulty, number> = { easy: 4, normal: 3, hard: 2, extreme: 1 };
+
+export function isKind(v: unknown): v is Kind {
+  return v === "clues" || v === "orbit";
+}
 
 export const DEFAULT_VOCAB: Vocab = "standard";
 export const VOCABS: Record<Vocab, { name: string; blurb: string }> = {
@@ -79,10 +93,16 @@ export function isLength(v: unknown): v is number {
   return typeof v === "number" && Number.isInteger(v) && v >= MIN_LENGTH && v <= MAX_LENGTH;
 }
 
-/** "" for the default game, otherwise e.g. "Animals, hard, countdown" or "7 letters, everyday, extreme". */
-export function variantLabel(length: number, difficulty: Difficulty, clock: Clock = DEFAULT_CLOCK, pack = "", vocab: Vocab = DEFAULT_VOCAB): string {
+/** "" for the default game, otherwise e.g. "Animals, hard, countdown", "7 letters, everyday, extreme" or "orbit, hard". */
+export function variantLabel(length: number, difficulty: Difficulty, clock: Clock = DEFAULT_CLOCK, pack = "", vocab: Vocab = DEFAULT_VOCAB, kind: Kind = DEFAULT_KIND): string {
   const parts: string[] = [];
+  if (kind === "orbit") parts.push("orbit");
   if (pack && PACKS[pack]) parts.push(PACKS[pack].name);
+  if (kind === "orbit") {
+    if (difficulty !== DEFAULT_DIFFICULTY) parts.push(DIFFICULTIES[difficulty].label.toLowerCase());
+    if (clock === "countdown") parts.push("countdown");
+    return parts.join(", ");
+  }
   if (length !== DEFAULT_LENGTH && !pack) parts.push(`${length} letters`);
   if (vocab === "everyday" && !pack) parts.push("everyday");
   if (difficulty !== DEFAULT_DIFFICULTY) parts.push(DIFFICULTIES[difficulty].label.toLowerCase());

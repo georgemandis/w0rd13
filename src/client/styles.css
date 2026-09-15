@@ -340,6 +340,41 @@ h2 { margin: 0 0 0.75rem; font-size: 1.6rem; line-height: 1.2; letter-spacing: -
 }
 .verdict-time { font-variant-numeric: tabular-nums; color: var(--muted); }
 
+/* ---------- orbit mode ---------- */
+
+.orbit { position: relative; width: min(100%, 24rem); aspect-ratio: 1; margin: 0 auto 0.5rem; }
+.orbit-graph { width: min(100%, 26rem); }
+.orbit-svg { width: 100%; height: 100%; display: block; font-family: var(--font); user-select: none; -webkit-user-select: none; touch-action: none; }
+.orbit-node text { pointer-events: none; }
+/* Each ring sways a few degrees back and forth on its own period; the words counter-sway to stay upright. */
+.orbit-ring { position: absolute; inset: 0; animation: sway var(--sway, 12s) ease-in-out infinite alternate; }
+.orbit-ring .orbit-word { animation: orbit-in 0.5s ease, unsway var(--sway, 12s) ease-in-out infinite alternate; }
+@keyframes sway { from { transform: rotate(-4deg); } to { transform: rotate(4deg); } }
+@keyframes unsway { from { transform: translate(-50%, -50%) rotate(4deg); } to { transform: translate(-50%, -50%) rotate(-4deg); } }
+.orbit-centre {
+  position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%);
+  width: 5rem; height: 5rem; border-radius: 50%; display: grid; place-items: center;
+  background: var(--text); color: var(--bg); font-size: 2rem; font-weight: 800;
+}
+.orbit-centre.orbit-win, .orbit-centre.orbit-miss { font-size: 0.95rem; text-transform: uppercase; letter-spacing: 0.08em; color: #fff; }
+.orbit-centre.orbit-win { background: var(--green); }
+.orbit-centre.orbit-miss { background: var(--miss); }
+.orbit-word {
+  position: absolute; transform: translate(-50%, -50%);
+  padding: 0.3rem 0.65rem; border: 1px solid var(--line); border-radius: 999px; background: var(--bg);
+  font-weight: 600; text-transform: uppercase; letter-spacing: 0.06em; font-size: 0.8rem; white-space: nowrap;
+  transition: left 0.6s, top 0.6s, opacity 0.4s; animation: orbit-in 0.5s ease;
+}
+.orbit-faded { font-size: calc(0.8rem - 0.06rem * min(var(--age, 1), 3)); padding: 0.2rem 0.5rem; }
+.orbit-faded:hover { opacity: 1 !important; z-index: 2; }
+.orbit-word:not(.orbit-faded):not(.orbit-guess) { z-index: 1; }
+.orbit-guess { border-color: var(--miss); color: var(--miss); font-size: 0.68rem; padding: 0.15rem 0.45rem; z-index: 2; }
+.orbit-cold { border-style: dashed; opacity: 0.7; }
+.orbit-hit { border-color: var(--miss); box-shadow: inset 0 0 0 1px var(--miss); }
+/* Entrance only scales; opacity is left to the inline fade so aged words don't snap back to full. */
+@keyframes orbit-in { from { transform: translate(-50%, -50%) scale(0.6); } to { transform: translate(-50%, -50%) scale(1); } }
+.orbit-ring .orbit-faded { animation: unsway var(--sway, 12s) ease-in-out infinite alternate; }
+
 /* ---------- keyboard ---------- */
 
 .keyboard { display: grid; gap: 0.4rem; margin-top: 0.5rem; user-select: none; -webkit-user-select: none; }
@@ -464,5 +499,6 @@ h2 { margin: 0 0 0.75rem; font-size: 1.6rem; line-height: 1.2; letter-spacing: -
 @media (prefers-reduced-motion: reduce) {
   .row-win .tile, .row-miss .tile, .shake, .boom, .quake, .clock-danger { animation: none; }
   .logo-inner { transition: none; }
+  .orbit-word, .orbit-ring { animation: none !important; transition: none; }
   .logo.flipped.rude { animation: none; }
 }

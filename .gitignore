@@ -4,6 +4,9 @@ node_modules/
 # build output
 dist/
 
+# prototype word vectors (regenerate with proto/orbit/embed.ts and the GloVe extract)
+proto/orbit/vectors*.json
+
 # cloudflare
 .wrangler/
 .dev.vars

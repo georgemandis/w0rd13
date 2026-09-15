@@ -1,0 +1,60 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Orbit (prototype)</title>
+    <link href="https://fonts.googleapis.com/css2?family=Libre+Franklin:wght@400;600;800&display=swap" rel="stylesheet" />
+    <style>
+      :root { --bg: #ffffff; --text: #1a1a1b; --muted: #787c7e; --line: #d3d6da; --accent: #6aaa64; --warm: #c9b458; --hot: #e63946; }
+      * { box-sizing: border-box; }
+      body { margin: 0; background: var(--bg); color: var(--text); font-family: "Libre Franklin", Helvetica, Arial, sans-serif; display: flex; flex-direction: column; align-items: center; padding: 0 1rem 3rem; }
+      header { width: min(100%, 30rem); padding: 0.75rem 0; border-bottom: 1px solid var(--line); display: flex; justify-content: space-between; align-items: baseline; }
+      h1 { margin: 0; font-size: 1.4rem; font-weight: 800; }
+      header span { color: var(--muted); font-size: 0.9rem; }
+      main { width: min(100%, 30rem); }
+      p.lede { color: var(--muted); margin: 1rem 0 0; font-size: 0.95rem; }
+      .orbit { position: relative; width: min(100%, 22rem); aspect-ratio: 1; margin: 1rem auto; }
+      .center { position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%); width: 5.2rem; height: 5.2rem; border-radius: 50%; display: grid; place-items: center; font-size: 2rem; font-weight: 800; background: var(--text); color: var(--bg); transition: background 0.4s; }
+      .center.won { background: var(--accent); font-size: 1.1rem; letter-spacing: 0.08em; text-transform: uppercase; }
+      .center.lost { background: var(--hot); font-size: 1.1rem; letter-spacing: 0.08em; text-transform: uppercase; }
+      .ring { position: absolute; left: 50%; top: 50%; width: 0; height: 0; }
+      .hint { position: absolute; left: 0; top: 0; transform: translate(-50%, -50%); padding: 0.35rem 0.7rem; border: 1px solid var(--line); border-radius: 999px; background: var(--bg); font-weight: 600; text-transform: uppercase; letter-spacing: 0.06em; font-size: 0.85rem; white-space: nowrap; transition: transform 0.9s cubic-bezier(0.2, 0.8, 0.2, 1), opacity 0.4s; }
+      .hint.enter { opacity: 0; }
+      .hint.old { opacity: 0.5; font-size: 0.75rem; }
+      .hint.dot { width: 0.6rem; height: 0.6rem; padding: 0; border-radius: 50%; background: var(--line); color: transparent; font-size: 0; overflow: hidden; opacity: 0.8; }
+      .hint.dot small { display: none; }
+      .hint.guess { border-color: var(--hot); color: var(--hot); background: #fff5f5; }
+      .hint small { display: block; font-weight: 400; text-transform: none; letter-spacing: 0; color: var(--muted); font-size: 0.7rem; text-align: center; }
+      .guide { position: absolute; left: 50%; top: 50%; border: 1px dashed var(--line); border-radius: 50%; transform: translate(-50%, -50%); transition: width 0.9s, height 0.9s; pointer-events: none; }
+      form { display: flex; gap: 0.5rem; margin-top: 0.5rem; }
+      input { flex: 1; font: inherit; font-size: 1.1rem; text-transform: uppercase; letter-spacing: 0.15em; padding: 0.7rem 0.9rem; border: 2px solid var(--line); border-radius: 4px; }
+      input:focus { outline: none; border-color: var(--text); }
+      button { font: inherit; font-weight: 600; padding: 0.7rem 1.3rem; border-radius: 999px; border: 1px solid var(--text); background: var(--text); color: var(--bg); cursor: pointer; }
+      button.secondary { background: transparent; color: var(--text); }
+      .status { margin: 0.75rem 0 0; min-height: 1.5rem; font-weight: 600; }
+      .guesses { list-style: none; padding: 0; margin: 1rem 0 0; border-top: 1px solid var(--line); }
+      .guesses li { display: flex; justify-content: space-between; padding: 0.5rem 0.25rem; border-bottom: 1px solid var(--line); font-variant-numeric: tabular-nums; }
+      .guesses .w { font-weight: 600; text-transform: uppercase; letter-spacing: 0.08em; }
+      .heat { display: inline-block; min-width: 5.5rem; text-align: right; }
+      .heat-cold { color: var(--muted); } .heat-warm { color: var(--warm); } .heat-hot { color: var(--hot); }
+      .meta { color: var(--muted); font-size: 0.85rem; margin-top: 1rem; }
+      .meta button { padding: 0.3rem 0.8rem; font-size: 0.85rem; margin-left: 0.5rem; }
+    </style>
+  </head>
+  <body>
+    <header><h1>Orbit</h1><span>prototype</span></header>
+    <main>
+      <p class="lede" id="lede">A secret five-letter word sits in the middle. The words around it are its neighbours in meaning, closest to the centre. Every miss adds a ring of closer neighbours, and your guesses land where they belong. <span id="guesses-label">Four guesses.</span></p>
+      <div class="orbit" id="orbit">
+        <div class="center" id="center">?</div>
+        <div class="ring" id="ring"></div>
+      </div>
+      <form id="form"><input id="guess" maxlength="5" autocomplete="off" autocapitalize="characters" placeholder="guess" /><button type="submit">Guess</button></form>
+      <p class="status" id="status"></p>
+      <ul class="guesses" id="guesses"></ul>
+      <p class="meta">Seed <span id="seed"></span><button class="secondary" type="button" id="new">New word</button><button class="secondary" type="button" id="reveal">Reveal</button></p>
+    </main>
+    <script type="module" src="./app.ts"></script>
+  </body>
+</html>
