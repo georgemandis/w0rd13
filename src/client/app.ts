@@ -7,6 +7,7 @@ import {
 } from "../game/config";
 import { buildShareText, formatPuzzleDate, formatTime, pickAward, squareFor, type RoundResult } from "../game/share";
 import { celebrateRound, commiserateRound, finishRun } from "./effects";
+import { orbitGraph, resetOrbitGraph } from "./orbitGraph";
 
 interface Clue { word: string; feedback: Feedback }
 interface ClientPuzzle { date: string; mode: Mode; length: number; difficulty: Difficulty; pack: string; vocab: Vocab; kind: Kind; rounds: { clues: Clue[]; hub?: string[]; theme?: string }[] }
@@ -41,6 +42,8 @@ interface State {
   confirmingQuit: boolean;
   /** Orbit mode: wrong guesses so far on this word; the ring reveals one band per miss. */
   orbitGuesses: OrbitGuess[];
+  /** Orbit mode: how the words on the board relate to each other, fetched per round. */
+  orbitEdges: { a: string; b: string; s: number }[];
   submitting: boolean;
 }
 
@@ -194,6 +197,7 @@ const state: State = {
   note: "",
   confirmingQuit: false,
   orbitGuesses: [],
+  orbitEdges: [],
   submitting: false,
 };
 
@@ -512,6 +516,7 @@ async function submitGuess(): Promise<void> {
       if (timeLeftMs() <= 0) return explode();
     }
     render();
+    void loadOrbitEdges();
     toast(`${guessed.toUpperCase()} is ${orbitHeat(data.near ?? null)}. ${ORBIT_GUESSES - state.orbitGuesses.length} left.`);
     return;
   }
@@ -617,6 +622,23 @@ function giveUpControls(): HTMLElement {
   return box;
 }
 
+/** Orbit: relatedness among everything on the board (hub words plus guesses), redrawn when it arrives. */
+async function loadOrbitEdges(): Promise<void> {
+  const round = state.puzzle?.rounds[state.round];
+  if (!round?.hub) return;
+  const words = [...new Set([...round.hub, ...state.orbitGuesses.map((g) => g.word)])];
+  const forRound = state.round;
+  try {
+    const res = await fetch("/api/edges", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ words }) });
+    const data = (await res.json()) as { edges: { a: string; b: string; s: number }[] };
+    if (state.round !== forRound) return;
+    state.orbitEdges = data.edges ?? [];
+    if (state.phase === "playing" || state.phase === "revealed") render();
+  } catch {
+    /* lines are decoration; the game goes on without them */
+  }
+}
+
 /** Countdown hit zero: the current word (or the one just missed) blows up and the run ends. */
 function explode(): void {
   stopTimer();
@@ -665,10 +687,13 @@ function setChecking(on: boolean): void {
 
 function startRound(index: number): void {
   if (index === 0) track("Game started", setupProps());
+  resetOrbitGraph();
   state.round = index;
   state.input = "";
   state.confirmingQuit = false;
   state.orbitGuesses = [];
+  state.orbitEdges = [];
+  if (isOrbit()) void loadOrbitEdges();
   state.phase = "playing";
   state.roundStart = performance.now();
   render();
@@ -1297,7 +1322,22 @@ function renderRound(): void {
     ),
   );
   const rows = h("div", { class: "rows" });
-  if (round.hub) rows.append(orbitBoard(round.hub, state.orbitGuesses, result ? { answer: result.answer, correct: result.correct } : null));
+  if (round.hub) {
+    const css = getComputedStyle(document.documentElement);
+    const colour = (name: string) => css.getPropertyValue(name).trim();
+    const board = h("div", { class: "orbit orbit-graph" });
+    board.append(orbitGraph({
+      key: `${state.date}:${state.mode}:${state.round}:${round.hub.join(",")}`,
+      hub: round.hub,
+      per: ORBIT_WORDS[state.puzzle!.difficulty],
+      rings: result ? ORBIT_GUESSES : Math.min(ORBIT_GUESSES, state.orbitGuesses.length + 1),
+      guesses: state.orbitGuesses,
+      edges: state.orbitEdges,
+      reveal: result ? { answer: result.answer, correct: result.correct } : null,
+      colors: { text: colour("--text"), bg: colour("--bg"), line: colour("--line"), muted: colour("--muted"), miss: colour("--miss"), green: colour("--green") },
+    }));
+    rows.append(board);
+  }
   for (const c of round.clues) rows.append(wordRow(c.word, c.feedback));
   // Orbit: earlier misses stack up as ordinary coloured rows, so spelling narrows things too.
   for (const g of state.orbitGuesses) rows.append(wordRow(g.word, g.feedback));

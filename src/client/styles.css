@@ -343,6 +343,9 @@ h2 { margin: 0 0 0.75rem; font-size: 1.6rem; line-height: 1.2; letter-spacing: -
 /* ---------- orbit mode ---------- */
 
 .orbit { position: relative; width: min(100%, 24rem); aspect-ratio: 1; margin: 0 auto 0.5rem; }
+.orbit-graph { width: min(100%, 26rem); }
+.orbit-svg { width: 100%; height: 100%; display: block; font-family: var(--font); user-select: none; -webkit-user-select: none; touch-action: none; }
+.orbit-node text { pointer-events: none; }
 /* Each ring sways a few degrees back and forth on its own period; the words counter-sway to stay upright. */
 .orbit-ring { position: absolute; inset: 0; animation: sway var(--sway, 12s) ease-in-out infinite alternate; }
 .orbit-ring .orbit-word { animation: orbit-in 0.5s ease, unsway var(--sway, 12s) ease-in-out infinite alternate; }

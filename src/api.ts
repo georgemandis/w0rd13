@@ -4,6 +4,7 @@ import { scoreGuess } from "./game/feedback";
 import { wordsForLength } from "./words";
 import { PACK_WORDS } from "./words/packs";
 import { HUBS } from "./words/hubs";
+import { NEIGHBORS } from "./words/neighbors";
 
 /**
  * The game API, written against the standard Request/Response types so the
@@ -14,6 +15,7 @@ import { HUBS } from "./words/hubs";
  *                    (orbit: answer only when correct or final; interim misses still get letter feedback,
  *                     plus `near`, the guess's rank among the secret's 25 nearest neighbours, or null)
  *   POST /api/reveal {round}                            -> answer (countdown blew up)
+ *   POST /api/edges  {words}                            -> how the given words relate to each other (Orbit board)
  */
 
 /** Optional shared store (the Worker uses the edge cache) so fresh isolates don't regenerate puzzles. */
@@ -82,10 +84,40 @@ async function readRound(req: Request, puzzle: Puzzle): Promise<{ round: number;
   return { round, guess: String(body?.guess ?? "").toLowerCase(), final: body?.final === true };
 }
 
+export interface Edge { a: string; b: string; s: number }
+
+/**
+ * Relatedness among a set of words: an edge where one is among the other's 25 nearest
+ * neighbours, with strength falling from 1 (nearest) towards 0 (25th). Symmetric: the
+ * stronger direction wins.
+ */
+export function edgesAmong(words: string[]): Edge[] {
+  const set = new Set(words);
+  const best = new Map<string, Edge>();
+  for (const a of set) {
+    const list = NEIGHBORS[a];
+    if (!list) continue;
+    list.forEach((b, i) => {
+      if (!set.has(b) || b === a) return;
+      const s = Math.round((1 - i / list.length) * 100) / 100;
+      const key = a < b ? `${a}|${b}` : `${b}|${a}`;
+      const cur = best.get(key);
+      if (!cur || s > cur.s) best.set(key, { a: a < b ? a : b, b: a < b ? b : a, s });
+    });
+  }
+  return [...best.values()].sort((x, y) => y.s - x.s);
+}
+
 /** Returns a Response for /api/* requests, or null if the path is not an API route. */
 export async function handleApi(req: Request, store?: PuzzleStore): Promise<Response | null> {
   const url = new URL(req.url);
   if (!url.pathname.startsWith("/api/")) return null;
+
+  if (url.pathname === "/api/edges" && req.method === "POST") {
+    const body = (await req.json().catch(() => null)) as { words?: unknown } | null;
+    const words = Array.isArray(body?.words) ? body!.words.filter((w): w is string => typeof w === "string" && /^[a-z0-9]{1,12}$/.test(w)).slice(0, 60) : [];
+    return Response.json({ edges: edgesAmong(words) });
+  }
   const params = parseParams(url);
   if (params instanceof Response) return params;
   const puzzle = await getPuzzle(params, store);
