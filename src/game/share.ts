@@ -7,6 +7,8 @@ export interface RoundResult {
   exploded?: boolean;
   /** The player gave up on or before this word. */
   gaveUp?: boolean;
+  /** Orbit mode: how many guesses this word took (or was allowed before the miss). */
+  tries?: number;
 }
 
 export interface ShareInput {
@@ -73,7 +75,9 @@ export function buildShareText({ date, mode, results, award, variant, timeLeftMs
   const label = variant ? `${dateLabel} (${variant})` : dateLabel;
   const squares = results.map(squareFor).join("");
   // Words never reached after giving up show in the summary squares but not the breakdown.
-  const breakdown = results.filter((r) => !(r.gaveUp && r.ms === 0)).map((r) => `${squareFor(r)} ${formatTime(r.ms)}`);
+  const breakdown = results
+    .filter((r) => !(r.gaveUp && r.ms === 0))
+    .map((r) => `${squareFor(r)} ${formatTime(r.ms)}${r.tries ? ` in ${r.tries}` : ""}`);
   const summary = `${squares} ${time}${award ? ` ${award}` : ""}`;
   return ["w0rd13", label, summary, "", ...breakdown].join("\n");
 }

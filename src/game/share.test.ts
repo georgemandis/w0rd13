@@ -155,3 +155,15 @@ describe("buildShareText", () => {
     expect(text.split("\n")[5]).toBe("⬛ 1:05");
   });
 });
+
+describe("orbit tries in the breakdown", () => {
+  test("each word shows how many guesses it took", () => {
+    const results = [
+      { correct: true, ms: 7_000, tries: 1 },
+      { correct: true, ms: 34_000, tries: 3 },
+      { correct: false, ms: 50_000, tries: 5 },
+    ];
+    const text = buildShareText({ date: "2026-09-14", mode: "daily", results, variant: "orbit" });
+    expect(text.split("\n").slice(4)).toEqual(["🟩 0:07 in 1", "🟩 0:34 in 3", "⬛ 0:50 in 5"]);
+  });
+});

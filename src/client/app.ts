@@ -868,7 +868,7 @@ function orbitHeat(near: number | null): string {
 }
 
 /** Ring radius (percent of the board) for band k, where 0 is the farthest band and the last is the nearest. */
-const ORBIT_RADII = [44, 37, 30.5, 24, 18];
+const ORBIT_RADII = [46, 38.5, 31, 23.5, 16];
 
 /**
  * Orbit mode board. `hub` lists neighbours nearest first; the ring reveals from the far end, one band per
@@ -884,25 +884,59 @@ function orbitBoard(hub: string[], guesses: OrbitGuess[], reveal: { answer: stri
     const a = (deg * Math.PI) / 180;
     return `left: ${50 + Math.cos(a) * radius}%; top: ${50 + Math.sin(a) * radius}%`;
   };
+  // Everything placed so far, so guess markers can find an empty angle near their own radius.
+  const placed: { radius: number; deg: number }[] = [];
+  // A guessed word that is also a ring word is marked on the ring itself rather than drawn twice.
+  const guessed = new Set(guesses.map((g) => g.word));
+  const onRing = new Set<string>();
   for (let k = 0; k < shown; k++) {
     const band = hub.slice((ORBIT_GUESSES - 1 - k) * per, (ORBIT_GUESSES - k) * per);
     // Each older ring fades and shrinks a step further, so only the newest one competes for attention.
     const age = shown - 1 - k;
     const fade = age === 0 ? 1 : Math.max(0.12, 0.55 * 0.55 ** (age - 1));
+    // Every ring sways gently on its own period; words counter-sway so they stay upright.
+    const ring = h("div", { class: "orbit-ring", style: `--sway: ${(11 + k * 2.5).toFixed(1)}s` });
+    // Consecutive rings are offset by half a slot, so neighbouring rings interleave instead of stacking.
+    const offset = (180 / band.length) * k;
     band.forEach((w, i) => {
-      board.append(h("div", {
-        class: `orbit-word${age > 0 ? " orbit-faded" : ""}`,
-        style: `${at(ORBIT_RADII[k]!, -90 + (360 / band.length) * i + k * 24)}; opacity: ${fade.toFixed(2)}; --age: ${age}`,
+      const deg = -90 + (360 / band.length) * i + offset;
+      placed.push({ radius: ORBIT_RADII[k]!, deg });
+      if (guessed.has(w)) onRing.add(w);
+      ring.append(h("div", {
+        class: `orbit-word${age > 0 ? " orbit-faded" : ""}${guessed.has(w) ? " orbit-hit" : ""}`,
+        style: `${at(ORBIT_RADII[k]!, deg)}; opacity: ${fade.toFixed(2)}; --age: ${age}`,
         title: w,
       }, w));
     });
+    board.append(ring);
   }
   guesses.forEach((g, i) => {
-    const radius = g.near === null ? 47 : 18 + (g.near / 25) * 26;
+    if (onRing.has(g.word)) return;
+    const radius = g.near === null ? 48 : 16 + (g.near / 25) * 30;
     const age = guesses.length - 1 - i;
-    board.append(h("div", { class: `orbit-word orbit-guess${g.near === null ? " orbit-cold" : ""}`, style: `${at(radius, 200 + i * 47)}; opacity: ${Math.max(0.35, 1 - age * 0.2).toFixed(2)}` }, g.word));
+    const deg = emptiestAngle(placed, radius);
+    placed.push({ radius, deg });
+    board.append(h("div", { class: `orbit-word orbit-guess${g.near === null ? " orbit-cold" : ""}`, style: `${at(radius, deg)}; opacity: ${Math.max(0.35, 1 - age * 0.2).toFixed(2)}` }, g.word));
   });
   return board;
+}
+
+/** The angle with the most room among things placed at a similar radius, tried every 15 degrees. */
+function emptiestAngle(placed: { radius: number; deg: number }[], radius: number): number {
+  const near = placed.filter((p) => Math.abs(p.radius - radius) < 11);
+  let best = 200;
+  let bestGap = -1;
+  for (let deg = 0; deg < 360; deg += 15) {
+    const gap = near.reduce((min, p) => {
+      const d = Math.abs(((deg - p.deg) % 360) + 540) % 360 - 180;
+      return Math.min(min, Math.abs(d));
+    }, 360);
+    if (gap > bestGap) {
+      bestGap = gap;
+      best = deg;
+    }
+  }
+  return best;
 }
 
 function inputRow(): HTMLElement {
