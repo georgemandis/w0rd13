@@ -1,0 +1,4 @@
+# Inline PLAUSIBLE_* env vars into client code served by the dev server (bun dev).
+# The production build does the same with --env (see package.json).
+[serve.static]
+env = "PLAUSIBLE_*"

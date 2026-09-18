@@ -1,6 +1,6 @@
 /**
- * Builds src/words/byLength.ts for word lengths other than 5 (5 uses the
- * official Wordle lists).
+ * Builds src/words/byLength.ts: the answer, allowed-guess and everyday lists
+ * for every word length from 3 to 10.
  *
  * Answers are words that are common in BOTH web text (Norvig's Google unigram
  * counts) and speech (OpenSubtitles frequencies), so web junk like "abu" or
@@ -8,17 +8,22 @@
  * lowercase entry in the system dictionary. Proper names from the system
  * propernames file are excluded unless they are ordinary words too (see
  * NAME_ALLOWLIST). Words are ranked by the worse of their two frequency ranks
- * and the top N per length are kept.
+ * and the top N per length are kept. At five letters every word from a
+ * non-loose theme pack is added as well, so themed puzzles always draw from
+ * the answer list.
  *
  * Allowed guesses are every lowercase dictionary word of that length.
  *
  *   bun scripts/build-words.ts
  */
+import { PACK_WORDS } from "../src/words/packs";
+import { PACKS } from "../src/game/config";
+
 const WEB_COUNTS_URL = "https://norvig.com/ngrams/count_1w.txt";
 const SPEECH_COUNTS_URL = "https://raw.githubusercontent.com/hermitdave/FrequencyWords/master/content/2018/en/en_50k.txt";
 const DICT_PATH = "/usr/share/dict/words";
 const NAMES_PATH = "/usr/share/dict/propernames";
-const ANSWER_COUNTS: Record<number, number> = { 3: 300, 4: 900, 6: 1200, 7: 1200, 8: 1200, 9: 900, 10: 800 };
+const ANSWER_COUNTS: Record<number, number> = { 3: 300, 4: 900, 5: 1500, 6: 1200, 7: 1200, 8: 1200, 9: 900, 10: 800 };
 /** "Everyday" vocabulary: the most common spoken words per length (OpenSubtitles rank). */
 const EASY_COUNTS: Record<number, number> = { 3: 150, 4: 400, 5: 700, 6: 500, 7: 500, 8: 450, 9: 350, 10: 300 };
 
@@ -26,10 +31,14 @@ const EASY_COUNTS: Record<number, number> = { 3: 150, 4: 400, 5: 700, 6: 500, 7:
 const NAME_ALLOWLIST = new Set(
   `the per art old win kit son van guy ray spy rod mat sue sir bud jay pat rob bill will page list part real case
    mark king lord skip root rich gene vice dean chip clay wolf duke dawn drew dale glen earl herb gale norm ping nick
+   grace april frank robin daisy chase major grant jimmy penny sandy candy jerry roman ruby
    trying shadow butler pierce laurel sanity brandy sergeant tolerant`.split(/\s+/),
 );
-/** Leftovers that pass every filter but still read as junk. */
-const BLOCKLIST = new Set("che lin het abu leu dee mae mel cho rel sen sic pix dow til lan tit roxy demi kona shea jess tory otto sophia blanca colleen piccadilly berlin boston brazil canada colorado finland geneva iceland jersey michigan montana morocco panama phoenix russia warsaw yale york".split(" "));
+/** Leftovers that pass every filter but still read as junk, plus names the propernames file misses and words nobody wants as a daily answer. */
+const BLOCKLIST = new Set(
+  `che lin het abu leu dee mae mel cho rel sen sic pix dow til lan tit roxy demi kona shea jess tory otto sophia blanca colleen piccadilly berlin boston brazil canada colorado finland geneva iceland jersey michigan montana morocco panama phoenix russia warsaw yale york
+   parma merle zorro boob cock homo piss rape slut bitch horny penis pussy semen titty whore vagina bastard`.split(/\s+/),
+);
 
 const lower = (text: string) => text.split("\n").map((w) => w.trim()).filter((w) => /^[a-z]+$/.test(w));
 const dict = new Set(lower(await Bun.file(DICT_PATH).text()));
@@ -38,26 +47,27 @@ const firstColumn = (text: string) => text.split("\n").map((line) => line.split(
 const webRank = new Map(firstColumn(await (await fetch(WEB_COUNTS_URL)).text()).map((w, i) => [w, i] as const));
 const speechRank = new Map(firstColumn(await (await fetch(SPEECH_COUNTS_URL)).text()).map((w, i) => [w, i] as const));
 
-import { ANSWERS as WORDLE_ANSWERS } from "../src/words/answers";
+/** Five-letter theme words (non-loose packs only) that must be answers. */
+const packWords = [...new Set(Object.entries(PACK_WORDS).filter(([id]) => !PACKS[id]?.loose).flatMap(([, w]) => w))];
 
 const out: Record<number, { answers: string[]; allowed: string[]; easy: string[] }> = {};
 const easiest = (words: string[], n: number) =>
   words.filter((w) => speechRank.has(w)).sort((a, b) => speechRank.get(a)! - speechRank.get(b)!).slice(0, n).sort();
 
-// Five letters keeps the official Wordle lists; only its everyday subset is generated here.
-out[5] = { answers: [], allowed: [], easy: easiest(WORDLE_ANSWERS, EASY_COUNTS[5]!) };
-console.log(`len 5: everyday subset ${out[5].easy.length} of ${WORDLE_ANSWERS.length} Wordle answers`);
 for (const [len, n] of Object.entries(ANSWER_COUNTS).map(([k, v]) => [Number(k), v] as const)) {
   const scored = [...dict]
     .filter((w) => w.length === len && webRank.has(w) && speechRank.has(w))
     .filter((w) => !BLOCKLIST.has(w) && (!names.has(w) || NAME_ALLOWLIST.has(w)))
     .map((w) => ({ w, score: Math.max(webRank.get(w)!, speechRank.get(w)!) }))
     .sort((a, b) => a.score - b.score);
-  const answers = scored.slice(0, n).map((x) => x.w).sort();
+  const extra = len === 5 ? packWords : [];
+  const answers = [...new Set(scored.slice(0, n).map((x) => x.w).concat(extra))].sort();
   const allowed = [...new Set([...dict].filter((w) => w.length === len).concat(answers))].sort();
   out[len] = { answers, allowed, easy: easiest(answers, EASY_COUNTS[len]!) };
   const tail = scored.slice(Math.max(0, Math.min(n, scored.length) - 25), n).map((x) => x.w).join(" ");
+  const added = extra.filter((w) => !scored.slice(0, n).some((x) => x.w === w));
   console.log(`len ${len}: ${answers.length} answers (of ${scored.length} eligible), ${allowed.length} allowed\n   rarest kept: ${tail}`);
+  if (added.length) console.log(`   theme words added: ${added.length} (${added.slice(0, 12).join(" ")}${added.length > 12 ? " ..." : ""})`);
 }
 
 const src =

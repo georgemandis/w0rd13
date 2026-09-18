@@ -2,7 +2,7 @@
 export type Mark = "g" | "y" | "x";
 export type Feedback = Mark[];
 
-/** Standard Wordle scoring for words of any length, with correct handling of repeated letters. */
+/** Standard green, yellow and grey scoring for words of any length, with correct handling of repeated letters. */
 export function scoreGuess(guess: string, answer: string): Feedback {
   const n = guess.length;
   const result: Feedback = new Array<Mark>(n).fill("x");

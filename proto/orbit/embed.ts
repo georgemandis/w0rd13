@@ -1,7 +1,10 @@
-// Prototype: embed every Wordle answer with Workers AI (bge-small) and save the vectors locally.
-import { ANSWERS } from "../../src/words/answers";
-const token = process.env.CF_TOKEN!;
-const account = "24166d3ab80f9215b1e9598ef0a687de";
+// Prototype: embed every five-letter answer with Workers AI (bge-small) and save the vectors locally.
+// Needs CF_ACCOUNT_ID and CF_TOKEN (a token with Workers AI access) in the environment or .env.
+import { wordsForLength } from "../../src/words";
+const ANSWERS = wordsForLength(5).answers;
+const token = process.env.CF_TOKEN;
+const account = process.env.CF_ACCOUNT_ID;
+if (!token || !account) throw new Error("set CF_ACCOUNT_ID and CF_TOKEN (see .env.example)");
 const out: Record<string, number[]> = {};
 for (let i = 0; i < ANSWERS.length; i += 100) {
   const batch = ANSWERS.slice(i, i + 100);

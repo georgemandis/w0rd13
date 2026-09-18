@@ -1,7 +1,5 @@
-import { ANSWERS } from "./answers";
-import { ALLOWED } from "./allowed";
 import { WORDS_BY_LENGTH } from "./byLength";
-import { DEFAULT_LENGTH } from "../game/config";
+import { OVERRIDES } from "./overrides";
 
 export interface WordLists {
   /** Puzzle answers and clue words. */
@@ -12,10 +10,12 @@ export interface WordLists {
   easy: string[];
 }
 
-/** Length 5 uses the canonical Wordle lists; other lengths come from byLength.ts. */
+/**
+ * Word lists for a length from 3 to 10: the private overrides.ts if it covers
+ * that length, otherwise the generated lists from scripts/build-words.ts.
+ */
 export function wordsForLength(length: number): WordLists {
-  const lists = WORDS_BY_LENGTH[length];
-  if (length === DEFAULT_LENGTH) return { answers: ANSWERS, allowed: ALLOWED, easy: lists?.easy ?? ANSWERS };
+  const lists = OVERRIDES[length] ?? WORDS_BY_LENGTH[length];
   if (!lists) throw new Error(`No word list for length ${length}`);
   return lists;
 }

@@ -1,4 +1,4 @@
-// Curated five-letter word themes. Every word here is in the Wordle answer list,
+// Curated five-letter word themes. Every word here is in the five-letter answer list,
 // except in packs flagged `loose` in PACKS (src/game/config.ts), which may carry
 // names and stylised spellings. Pack words are always accepted as guesses.
 export const PACK_WORDS: Record<string, string[]> = {

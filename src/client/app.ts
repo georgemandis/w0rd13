@@ -164,7 +164,29 @@ function budgetFromUrl(): number {
 
 const app = document.getElementById("app")!;
 
-/** Plausible custom events. The snippet in index.html queues calls until the script loads. */
+/**
+ * Privacy-friendly analytics by Plausible, on only when PLAUSIBLE_SCRIPT_ID is set at build time
+ * (inlined by bun build --env / bunfig.toml). Queues calls until the script loads.
+ */
+function loadPlausible(): void {
+  try {
+    const id = process.env.PLAUSIBLE_SCRIPT_ID;
+    if (!id) return;
+    const w = window as unknown as { plausible?: { (...args: unknown[]): void; q?: unknown[]; init?: (o?: unknown) => void; o?: unknown } };
+    w.plausible = w.plausible || Object.assign(function (...args: unknown[]) { (w.plausible!.q = w.plausible!.q || []).push(args); }, {});
+    w.plausible.init = w.plausible.init || ((o?: unknown) => { w.plausible!.o = o || {}; });
+    w.plausible.init();
+    const s = document.createElement("script");
+    s.async = true;
+    s.src = `https://plausible.io/js/${id}.js`;
+    document.head.appendChild(s);
+  } catch {
+    /* no analytics is fine */
+  }
+}
+loadPlausible();
+
+/** Plausible custom events. */
 function track(event: string, props: Record<string, string | number | boolean> = {}): void {
   try {
     (window as unknown as { plausible?: (e: string, o?: { props: typeof props }) => void }).plausible?.(event, { props });

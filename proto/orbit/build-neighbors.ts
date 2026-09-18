@@ -2,7 +2,8 @@
 // Orbit board can draw relatedness between any two words on it. Separate from hubs.ts, which
 // stays the curated target list.
 import { ranked, useModel } from "./neighbors";
-import { ANSWERS } from "../../src/words/answers";
+import { wordsForLength } from "../../src/words";
+const ANSWERS = wordsForLength(5).answers;
 useModel("both");
 const out: Record<string, string[]> = {};
 let n = 0;
