@@ -160,6 +160,48 @@
 :root[data-theme="clown"] h2 { color: #e63946; }
 :root[data-theme="clown"] .mode[aria-pressed="true"] { border-bottom-color: #e63946; }
 
+/* The Bottom Line: Axios blue, a navy rule across the top, pastel pills, and Pro gold for near misses. Follows the system dark setting. */
+:root[data-theme="bottomline"] {
+  color-scheme: light;
+  --bg: #ffffff;
+  --surface: #f4f4f4;
+  --line: #d9dde3;
+  --text: #121212;
+  --muted: #5f6672;
+  --green: #3d5cea;
+  --yellow: #e0a526;
+  --grey: #7d8590;
+  --key: #e8eefb;
+  --key-text: #121212;
+  --miss: #d64545;
+  --sq-miss: #1c3a7a;
+  --rule: #1c3a7a;
+}
+@media (prefers-color-scheme: dark) {
+  :root[data-theme="bottomline"] {
+    color-scheme: dark;
+    --bg: #0d1526;
+    --surface: #162038;
+    --line: #26304a;
+    --text: #f2f5fb;
+    --muted: #9aa6c0;
+    --green: #4d6cf5;
+    --yellow: #e0a526;
+    --grey: #3a4459;
+    --key: #2a3550;
+    --key-text: #f2f5fb;
+    --miss: #ff6b6b;
+    --sq-miss: #070b14;
+    --rule: #3d5cea;
+  }
+}
+:root[data-theme="bottomline"] .top { border-top: 8px solid var(--rule); }
+:root[data-theme="bottomline"] .brand { font-weight: 800; letter-spacing: -0.03em; text-transform: uppercase; }
+:root[data-theme="bottomline"] .primary { background: #3d5cea; border-color: #3d5cea; color: #fff; }
+:root[data-theme="bottomline"] .mode[aria-pressed="true"] { border-bottom-color: #3d5cea; }
+:root[data-theme="bottomline"] .pack-chip { background: var(--key); padding: 0.25rem 0.75rem; border-radius: 999px; }
+:root[data-theme="bottomline"] .clock { color: var(--rule); }
+
 * { box-sizing: border-box; }
 button, .kb, .tile { touch-action: manipulation; }
 

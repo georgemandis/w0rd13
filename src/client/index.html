@@ -6,7 +6,7 @@
     <title>w0rd13</title>
     <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'><rect width='64' height='64' rx='8' fill='%236aaa64'/><text x='32' y='46' font-family='Helvetica,Arial,sans-serif' font-size='40' font-weight='700' fill='white' text-anchor='middle'>1</text></svg>" />
     <script>
-      try { document.documentElement.dataset.theme = localStorage.getItem("w0rd13:theme") || "classic"; } catch {}
+      try { document.documentElement.dataset.theme = new URLSearchParams(location.search).get("theme") || localStorage.getItem("w0rd13:theme") || "classic"; } catch {}
     </script>
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />

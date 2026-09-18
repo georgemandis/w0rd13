@@ -90,6 +90,7 @@ const THEMES = [
   { id: "gameboy", name: "Game Boy", bg: "#c4cfa1", a: "#306230", b: "#8bac0f", names: ["Dark green", "Lime", "Olive"] },
   { id: "terminal", name: "Terminal", bg: "#0b0f0b", a: "#1f8f1f", b: "#b8a12a", names: ["Bright green", "Amber", "Dark"] },
   { id: "clown", name: "Down to Clown", bg: "#fffdf7", a: "#e63946", b: "#ffb703", names: ["Red", "Gold", "Blue"] },
+  { id: "bottomline", name: "The Bottom Line", bg: "#ffffff", a: "#3d5cea", b: "#e0a526", names: ["Why it matters", "Go deeper", "Yes, but"] },
 ] as const;
 
 function themeFor(id: string): Theme {
