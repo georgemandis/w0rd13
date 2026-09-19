@@ -20,7 +20,7 @@ body:
       label: What kind of thing is it
       options:
         - Word pack or vocabulary
-        - Colour theme
+        - Color theme
         - Game mode or rules
         - Sharing, stats or history
         - Looks and feel

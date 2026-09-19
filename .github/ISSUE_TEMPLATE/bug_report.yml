@@ -49,7 +49,7 @@ body:
   - type: input
     id: theme
     attributes:
-      label: Colour theme
+      label: Color theme
       description: Only if it looks like a display problem.
       placeholder: Classic
   - type: textarea

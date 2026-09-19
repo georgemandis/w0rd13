@@ -129,3 +129,49 @@ export function finishRun(kind: "perfect" | "good" | "rough" | "quit" | "boom"):
   rain(kind === "quit" ? 2.5 : 2, 4);
   window.setTimeout(() => rain(1.5, 2), 900);
 }
+
+/**
+ * Opening a badge in the trophy case. One of several little shows, picked at
+ * random, most of them starring the badge's own emoji.
+ */
+export function showOff(emoji: string): void {
+  if (reduced()) return;
+  const scalar = 2.4;
+  const badge = confetti.shapeFromText({ text: emoji, scalar });
+  const style = Math.floor(Math.random() * 5);
+  if (style === 0) {
+    // The badge itself, everywhere at once.
+    void confetti({ particleCount: 24, spread: 360, startVelocity: 35, scalar, shapes: [badge], origin: { y: 0.5 }, ticks: 240 });
+  } else if (style === 1) {
+    // Cannons from both sides, then the badge drifts down through the middle.
+    void confetti({ particleCount: 80, angle: 60, spread: 55, origin: { x: 0, y: 0.75 }, ticks: 220 });
+    void confetti({ particleCount: 80, angle: 120, spread: 55, origin: { x: 1, y: 0.75 }, ticks: 220 });
+    window.setTimeout(() => void confetti({ particleCount: 8, spread: 100, scalar, shapes: [badge], origin: { y: 0.45 }, ticks: 240 }), 250);
+  } else if (style === 2) {
+    // A fountain from the bottom, alternating paper and badges.
+    for (let i = 0; i < 4; i++) {
+      window.setTimeout(() => {
+        const withBadge = i % 2 === 1;
+        void confetti({
+          particleCount: withBadge ? 10 : 40, angle: 90, spread: 30, startVelocity: 55, gravity: 0.9,
+          origin: { x: 0.5, y: 1 }, ticks: 260, ...(withBadge ? { shapes: [badge], scalar } : {}),
+        });
+      }, i * 180);
+    }
+  } else if (style === 3) {
+    // A slow drift of stars and badges from above.
+    const stars = emojiShapes(HAPPY, 3, scalar);
+    for (let i = 0; i < 5; i++) {
+      window.setTimeout(() => {
+        void confetti({
+          particleCount: 6, angle: 270, spread: 40, startVelocity: 10, gravity: 0.6, drift: Math.random() - 0.5,
+          scalar, shapes: [badge, ...stars], origin: { x: 0.2 + 0.15 * i, y: -0.05 }, ticks: 320,
+        });
+      }, i * 120);
+    }
+  } else {
+    // A ring of paper, then one big badge pops out of the middle.
+    void confetti({ particleCount: 60, spread: 360, startVelocity: 25, decay: 0.92, origin: { y: 0.5 }, ticks: 200 });
+    window.setTimeout(() => void confetti({ particleCount: 5, spread: 60, startVelocity: 20, scalar: scalar + 0.6, shapes: [badge], origin: { y: 0.5 }, ticks: 240 }), 200);
+  }
+}

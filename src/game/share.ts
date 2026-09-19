@@ -21,6 +21,10 @@ export interface ShareInput {
   variant?: string;
   /** Countdown mode: time remaining when the run ended. Shown instead of time spent. */
   timeLeftMs?: number;
+  /** Clock off: no times anywhere. */
+  noClock?: boolean;
+  /** Optional badge line such as "🦔 Harold the Hedgie", shown under the summary. */
+  badge?: string;
 }
 
 export const GOOD_AWARDS: readonly string[] = ["🏆", "⭐", "⚡", "🦄", "🌟", "🎉"];
@@ -68,7 +72,7 @@ export function squareFor(r: RoundResult): string {
  * Shareable result. The first three lines match the classic format so it
  * still reads the same in chat; the breakdown below shows which word got you.
  */
-export function buildShareText({ date, mode, results, award, variant, timeLeftMs }: ShareInput): string {
+export function buildShareText({ date, mode, results, award, variant, timeLeftMs, noClock, badge }: ShareInput): string {
   const total = results.reduce((sum, r) => sum + r.ms, 0);
   const time = timeLeftMs === undefined ? formatTime(total) : `${formatTime(Math.max(0, timeLeftMs))} left`;
   const dateLabel = mode === "bonus" ? `Bonus ${formatPuzzleDate(date)}` : formatPuzzleDate(date);
@@ -77,7 +81,9 @@ export function buildShareText({ date, mode, results, award, variant, timeLeftMs
   // Words never reached after giving up show in the summary squares but not the breakdown.
   const breakdown = results
     .filter((r) => !(r.gaveUp && r.ms === 0))
-    .map((r) => `${squareFor(r)} ${formatTime(r.ms)}${r.tries ? ` in ${r.tries}` : ""}`);
-  const summary = `${squares} ${time}${award ? ` ${award}` : ""}`;
-  return ["w0rd13", label, summary, "", ...breakdown].join("\n");
+    .map((r) => (noClock ? `${squareFor(r)}${r.tries ? ` in ${r.tries}` : ""}` : `${squareFor(r)} ${formatTime(r.ms)}${r.tries ? ` in ${r.tries}` : ""}`));
+  const summary = noClock ? `${squares}${award ? ` ${award}` : ""}` : `${squares} ${time}${award ? ` ${award}` : ""}`;
+  // With no clock and one guess per word the breakdown would just repeat the squares, so it only appears when tries vary.
+  const showBreakdown = !noClock || results.some((r) => r.tries);
+  return ["w0rd13", label, summary, ...(badge ? [badge] : []), ...(showBreakdown ? ["", ...breakdown] : [])].join("\n");
 }

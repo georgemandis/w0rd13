@@ -203,6 +203,8 @@
 :root[data-theme="bottomline"] .clock { color: var(--rule); }
 
 * { box-sizing: border-box; }
+/* The hidden attribute must win over display rules on classes (the settings panel is a flex box, its labels are grids). */
+[hidden] { display: none !important; }
 button, .kb, .tile { touch-action: manipulation; }
 
 html, body { margin: 0; background: var(--bg); color: var(--text); }
@@ -257,6 +259,8 @@ body {
   padding: 0.35rem 0.5rem; cursor: pointer;
 }
 .mode[aria-pressed="true"] { color: var(--text); border-bottom-color: var(--text); }
+a.mode { text-decoration: none; display: inline-block; line-height: normal; }
+a.mode:hover { color: var(--text); }
 .mode:focus-visible { outline: 2px solid var(--text); outline-offset: 2px; }
 
 .theme-btn {
@@ -331,6 +335,10 @@ h2 { margin: 0 0 0.75rem; font-size: 1.6rem; line-height: 1.2; letter-spacing: -
 .settings { display: flex; flex-wrap: wrap; gap: 0.75rem 1rem; margin-bottom: 1.5rem; }
 .setting { flex: 1 1 40%; display: grid; gap: 0.3rem; }
 .setting-wide { flex-basis: 100%; }
+.setting-check { display: flex; align-items: center; gap: 0.5rem; }
+.setting-check input { width: 1.1rem; height: 1.1rem; margin: 0; flex: none; accent-color: var(--green); }
+.setup-line { text-align: center; margin: 0 0 1rem; }
+.setup-line .link-btn { font-size: inherit; }
 .setting select {
   font: inherit; color: var(--text); background: var(--bg);
   border: 1px solid var(--line); border-radius: 4px; padding: 0.5rem 0.6rem; width: 100%;
@@ -385,6 +393,7 @@ h2 { margin: 0 0 0.75rem; font-size: 1.6rem; line-height: 1.2; letter-spacing: -
   margin: 0 0 1.25rem; font-size: 1.05rem;
 }
 .verdict-time { font-variant-numeric: tabular-nums; color: var(--muted); }
+.orbit-note { text-align: center; font-weight: 600; margin: 0 0 0.75rem; }
 
 /* ---------- orbit mode ---------- */
 
@@ -424,18 +433,22 @@ h2 { margin: 0 0 0.75rem; font-size: 1.6rem; line-height: 1.2; letter-spacing: -
 /* ---------- keyboard ---------- */
 
 .keyboard { display: grid; gap: 0.4rem; margin-top: 0.5rem; user-select: none; -webkit-user-select: none; }
-.kb-row { display: flex; justify-content: center; gap: 0.35rem; }
+.kb-row { display: flex; justify-content: center; gap: 0.3rem; }
 .kb {
+  position: relative;
   font: inherit; font-weight: 700; text-transform: uppercase; font-size: 0.85rem;
-  flex: 1 1 0; max-width: 2.6rem; height: 3.4rem; border: 0; border-radius: 4px;
+  flex: 1 1 0; max-width: 2.75rem; height: 3.6rem; border: 0; border-radius: 4px;
   background: var(--key); color: var(--key-text); cursor: pointer; padding: 0;
 }
+/* Invisible hit slop: a tap in the gap between keys still lands on the nearer key. */
+.kb::after { content: ""; position: absolute; inset: -0.2rem; }
 .kb-wide { flex: 1.6 1 0; max-width: 4.2rem; font-size: 0.7rem; display: grid; place-items: center; }
 .kb svg { width: 1.5rem; height: 1.5rem; display: block; }
 .kb-g, .kb-y { color: #fff; }
 .kb-g { background: var(--green); }
 .kb-y { background: var(--yellow); }
-.kb-x { background: var(--grey); color: #fff; }
+/* Absent letters go hollow: an outline with muted text reads as struck out beside the solid unused keys, in every theme. */
+.kb-x { background: transparent; box-shadow: inset 0 0 0 1.5px var(--line); color: var(--muted); font-weight: 500; }
 .kb:active { filter: brightness(0.9); }
 .kb:disabled { opacity: 0.45; cursor: wait; }
 .kb-digits .kb { height: 2.4rem; font-size: 0.8rem; }
@@ -472,6 +485,13 @@ h2 { margin: 0 0 0.75rem; font-size: 1.6rem; line-height: 1.2; letter-spacing: -
 .sq-x { background: var(--sq-miss); }
 .sq-boom { background: none; font-size: 1.4rem; line-height: 1; width: auto; height: auto; }
 .award { font-size: 3rem; line-height: 1; margin: 0.6rem 0 0.2rem; }
+.badge {
+  display: flex; align-items: flex-start; gap: 0.75rem; text-align: left;
+  margin: 1rem auto 0; max-width: 26rem; padding: 0.75rem 1rem;
+  border: 1px solid var(--line); border-radius: 8px; background: var(--surface);
+}
+.badge-emoji { font-size: 2rem; line-height: 1; flex: none; }
+.badge-text p { margin: 0.15rem 0 0; }
 
 .breakdown { list-style: none; margin: 0 0 1.5rem; padding: 0; border-top: 1px solid var(--line); }
 .bd {
@@ -508,6 +528,34 @@ h2 { margin: 0 0 0.75rem; font-size: 1.6rem; line-height: 1.2; letter-spacing: -
 
 /* ---------- history and stats ---------- */
 
+.mode-icon { font-size: 1.15rem; padding: 0.25rem 0.4rem; line-height: 1; filter: grayscale(1); opacity: 0.7; }
+.mode-icon:hover, .mode-icon[aria-pressed="true"] { filter: none; opacity: 1; }
+.trophy-case h2 { margin: 0 0 0.25rem; }
+.trophy-case > p { margin: 0 0 1rem; }
+.trophy-locked { opacity: 0.4; cursor: default; }
+/* The badge card: below the confetti canvas (which sits at z-index 100) so the show flies over it. */
+.scrim { position: fixed; inset: 0; background: rgba(0, 0, 0, 0.45); z-index: 40; }
+.badge-modal {
+  position: fixed; inset: 0; margin: auto; width: min(calc(100% - 2rem), 22rem); height: fit-content; z-index: 50;
+  padding: 1.5rem 1.5rem 1.25rem; text-align: center; color: var(--text); background: var(--bg);
+  border: 1px solid var(--line); border-radius: 14px; box-shadow: 0 16px 48px rgba(0, 0, 0, 0.3);
+}
+.badge-modal-emoji { font-size: 4.5rem; line-height: 1; animation: pop 0.55s cubic-bezier(0.2, 1.5, 0.4, 1) both; }
+.badge-modal h3 { margin: 0.75rem 0 0.35rem; font-size: 1.35rem; }
+.badge-modal p { margin: 0 0 1.25rem; }
+@keyframes pop { from { transform: scale(0.3) rotate(-12deg); opacity: 0; } to { transform: none; opacity: 1; } }
+.trophy-locked .trophy-emoji { color: var(--muted); font-weight: 700; }
+.trophies { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(auto-fill, minmax(5.5rem, 1fr)); gap: 0.5rem; }
+.trophies li { display: grid; }
+.trophy {
+  width: 100%; height: 100%; font: inherit; color: var(--text); background: var(--surface); border: 1px solid var(--line); border-radius: 8px;
+  padding: 0.55rem 0.25rem 0.45rem; display: grid; gap: 0.25rem; justify-items: center; cursor: pointer;
+}
+.trophy:hover, .trophy-open { border-color: var(--text); }
+.trophy:focus-visible { outline: 2px solid var(--text); outline-offset: 2px; }
+.trophy-emoji { font-size: 1.7rem; line-height: 1; }
+.trophy-name { font-size: 0.7rem; line-height: 1.2; text-align: center; }
+.trophy-lore { margin: 0.75rem 0 0; min-height: 1.4em; }
 .history { margin-top: 2rem; padding-top: 1.25rem; border-top: 1px solid var(--line); }
 .history h3 { margin: 0 0 0.75rem; font-size: 1.1rem; }
 .stats { display: grid; grid-template-columns: repeat(4, 1fr); gap: 0.5rem; margin: 0 0 1rem; padding: 0; }
@@ -537,13 +585,17 @@ h2 { margin: 0 0 0.75rem; font-size: 1.6rem; line-height: 1.2; letter-spacing: -
 
 @media (max-width: 420px) {
   .row { --tile: min(3.1rem, var(--fit)); }
+  /* Phones: keys fill the row and the gaps shrink, so each key is as wide as the screen allows. */
+  .kb { max-width: none; font-size: 0.95rem; }
+  .kb-row { gap: 0.25rem; }
+  .kb-wide { max-width: none; }
   .clock { font-size: 1.75rem; }
   .clock-final { font-size: 2.6rem; }
   .top { flex-wrap: wrap; }
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .row-win .tile, .row-miss .tile, .shake, .boom, .quake, .clock-danger { animation: none; }
+  .row-win .tile, .row-miss .tile, .shake, .boom, .quake, .clock-danger, .badge-modal-emoji { animation: none; }
   .logo-inner { transition: none; }
   .orbit-word, .orbit-ring { animation: none !important; transition: none; }
   .logo.flipped.rude { animation: none; }

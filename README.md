@@ -1,6 +1,6 @@
 # w0rd13
 
-Five words a day. Each comes with a few guesses already played; read the colours, work out the only word that fits, and type it. One guess per word, and the clock runs the whole time.
+Five words a day. Each comes with a few guesses already played; read the colors, work out the only word that fits, and type it. One guess per word, and the clock runs the whole time.
 
 Pick a word length from 3 to 10, a difficulty from four clues down to one, a word theme, or a countdown clock. Every puzzle is uniquely solvable.
 

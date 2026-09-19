@@ -15,6 +15,8 @@ describe("variantLabel", () => {
     expect(variantLabel(5, "normal", "stopwatch", "animals", "everyday")).toBe("Animals");
     expect(variantLabel(5, "normal", "stopwatch", "", "standard", "orbit")).toBe("orbit");
     expect(variantLabel(5, "hard", "countdown", "animals", "standard", "orbit")).toBe("orbit, Animals, hard, countdown");
+    expect(variantLabel(5, "normal", "off")).toBe("no clock");
+    expect(variantLabel(5, "normal", "off", "", "standard", "orbit")).toBe("orbit, no clock");
   });
 });
 
@@ -153,6 +155,24 @@ describe("buildShareText", () => {
     expect(text.split("\n")[2]).toBe("🟩⬛🟩🟩⬛ 1:50");
     expect(text.split("\n")[4]).toBe("🟩 0:05");
     expect(text.split("\n")[5]).toBe("⬛ 1:05");
+  });
+});
+
+describe("no clock and badges", () => {
+  test("a no-clock run has no times and no breakdown", () => {
+    const text = buildShareText({ date: "2026-09-09", mode: "daily", results: perfect, variant: "no clock", award: "🏆", noClock: true });
+    expect(text).toBe(["w0rd13", "September 9, 2026 (no clock)", "🟩🟩🟩🟩🟩 🏆"].join("\n"));
+  });
+
+  test("a no-clock orbit run keeps the tries", () => {
+    const results = [{ correct: true, ms: 7_000, tries: 1 }, { correct: true, ms: 34_000, tries: 3 }];
+    const text = buildShareText({ date: "2026-09-09", mode: "daily", results, variant: "orbit, no clock", noClock: true });
+    expect(text.split("\n").slice(2)).toEqual(["🟩🟩", "", "🟩 in 1", "🟩 in 3"]);
+  });
+
+  test("a badge sits under the summary line", () => {
+    const text = buildShareText({ date: "2026-09-09", mode: "daily", results: perfect, award: "🦄", badge: "🦔 Harold the Hedgie" });
+    expect(text.split("\n").slice(2, 5)).toEqual(["🟩🟩🟩🟩🟩 2:55 🦄", "🦔 Harold the Hedgie", ""]);
   });
 });
 

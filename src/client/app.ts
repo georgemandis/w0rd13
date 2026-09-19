@@ -1,12 +1,13 @@
 import type { Feedback, Mark } from "../game/feedback";
 import {
   DIFFICULTIES, DEFAULT_DIFFICULTY, DEFAULT_LENGTH, MIN_LENGTH, MAX_LENGTH, DEFAULT_CLOCK,
-  COUNTDOWN_BUDGET_MS, COUNTDOWN_PENALTY_MS, PACKS, VOCABS, DEFAULT_VOCAB, KINDS, DEFAULT_KIND, ORBIT_WORDS, ORBIT_GUESSES,
+  COUNTDOWN_BUDGET_MS, COUNTDOWN_PENALTY_MS, PACKS, VOCABS, DEFAULT_VOCAB, DEFAULT_KIND, ORBIT_WORDS, ORBIT_GUESSES,
   isClock, isDifficulty, isKind, isLength, isPack, isVocab, localDateString, packAllowsDigits, variantLabel,
   type Clock, type Difficulty, type Kind, type Mode, type Vocab,
 } from "../game/config";
 import { buildShareText, formatPuzzleDate, formatTime, pickAward, squareFor, type RoundResult } from "../game/share";
-import { celebrateRound, commiserateRound, finishRun } from "./effects";
+import { BADGES, badgeById, badgeLine, pickBadge, type Badge, type BadgeContext } from "../game/badges";
+import { celebrateRound, commiserateRound, finishRun, showOff } from "./effects";
 import { orbitGraph, resetOrbitGraph } from "./orbitGraph";
 
 interface Clue { word: string; feedback: Feedback }
@@ -16,7 +17,7 @@ interface FinishedRound extends RoundResult { guess: string; answer: string; fee
 /** Orbit mode: a wrong guess, how close it was in meaning (rank among the 25 nearest, or null for cold), and its letter feedback. */
 interface OrbitGuess { word: string; near: number | null; feedback: Feedback }
 
-type Phase = "loading" | "intro" | "playing" | "revealed" | "exploded" | "done";
+type Phase = "loading" | "intro" | "playing" | "revealed" | "exploded" | "done" | "trophies";
 
 interface State {
   mode: Mode;
@@ -38,12 +39,16 @@ interface State {
   roundStart: number;
   results: FinishedRound[];
   award: string;
+  /** Badge id from pickBadge, or "". */
+  badge: string;
   note: string;
   confirmingQuit: boolean;
   /** Orbit mode: wrong guesses so far on this word; the ring reveals one band per miss. */
   orbitGuesses: OrbitGuess[];
   /** Orbit mode: how the words on the board relate to each other, fetched per round. */
   orbitEdges: { a: string; b: string; s: number }[];
+  /** Orbit mode: the verdict on the last miss ("PIANO is warm. 3 left."), shown under the board. */
+  orbitNote: string;
   submitting: boolean;
 }
 
@@ -51,6 +56,7 @@ interface SavedGame {
   settings: Settings;
   results: FinishedRound[];
   award: string;
+  badge?: string;
   timeLeftMs?: number;
   finishedAt: number;
   /** The "sad you quit" line chosen when the player gave up, kept so it doesn't change on reload. */
@@ -81,9 +87,9 @@ let nagIndex = 0;
  * `names` are how the legend describes the three tile states in that theme.
  */
 const THEMES = [
-  { id: "classic", name: "Classic", bg: "#ffffff", a: "#6aaa64", b: "#c9b458", names: ["Green", "Yellow", "Grey"] },
-  { id: "slate", name: "Slate", bg: "#222938", a: "#5f9e5a", b: "#c8a94a", names: ["Green", "Yellow", "Grey"] },
-  { id: "noir", name: "Noir", bg: "#121213", a: "#538d4e", b: "#b59f3b", names: ["Green", "Yellow", "Grey"] },
+  { id: "classic", name: "Classic", bg: "#ffffff", a: "#6aaa64", b: "#c9b458", names: ["Green", "Yellow", "Gray"] },
+  { id: "slate", name: "Slate", bg: "#222938", a: "#5f9e5a", b: "#c8a94a", names: ["Green", "Yellow", "Gray"] },
+  { id: "noir", name: "Noir", bg: "#121213", a: "#538d4e", b: "#b59f3b", names: ["Green", "Yellow", "Gray"] },
   { id: "bubblegum", name: "Bubblegum", bg: "#2c1a33", a: "#4fb383", b: "#e6b04e", names: ["Mint", "Gold", "Plum"] },
   { id: "citrus", name: "Citrus", bg: "#fff8e6", a: "#4caf6d", b: "#f2a93b", names: ["Green", "Orange", "Tan"] },
   { id: "prince", name: "I Would Die 4 u", bg: "#2b0a4e", a: "#a35bff", b: "#f2c14e", names: ["Purple", "Gold", "Dark purple"] },
@@ -104,6 +110,28 @@ function legendText(): string {
 }
 type Theme = (typeof THEMES)[number];
 const THEME_KEY = "w0rd13:theme";
+/** Per-device preferences and records, all in localStorage. */
+const HIDE_CLOCK_KEY = "w0rd13:hideclock";
+const SETUP_OPEN_KEY = "w0rd13:setup-open";
+const FILED_KEY = "w0rd13:filed";
+const BADGES_KEY = "w0rd13:badges";
+
+function pref(key: string): string {
+  try {
+    return localStorage.getItem(key) ?? "";
+  } catch {
+    return "";
+  }
+}
+
+function setPref(key: string, value: string): void {
+  try {
+    if (value) localStorage.setItem(key, value);
+    else localStorage.removeItem(key);
+  } catch {
+    /* ignore */
+  }
+}
 /**
  * Game settings live in the URL so a setup can be shared: ?letters=7&difficulty=extreme&pack=animals&clock=countdown&mode=bonus
  * Defaults (5 letters, normal, mixed, stopwatch, daily) are omitted, so a bare URL is always the standard game.
@@ -111,6 +139,8 @@ const THEME_KEY = "w0rd13:theme";
 interface Settings { mode: Mode; length: number; difficulty: Difficulty; clock: Clock; pack: string; vocab: Vocab; kind: Kind }
 
 const TODAY = localDateString();
+/** Arriving on #trophies opens the trophy case once the puzzle is in; the URL sync below strips the hash, so it is read here. */
+const OPEN_TROPHIES = location.hash === "#trophies";
 
 function readUrlDate(): string {
   const d = new URLSearchParams(location.search).get("date") ?? "";
@@ -217,10 +247,12 @@ const state: State = {
   roundStart: 0,
   results: [],
   award: "",
+  badge: "",
   note: "",
   confirmingQuit: false,
   orbitGuesses: [],
   orbitEdges: [],
+  orbitNote: "",
   submitting: false,
 };
 
@@ -244,6 +276,16 @@ function variant(): string {
 
 function isCountdown(): boolean {
   return state.clock === "countdown";
+}
+
+/** Clock off: nothing is timed as far as the player can see. */
+function noClock(): boolean {
+  return state.clock === "off";
+}
+
+/** Whether the running clock is shown during play. Off means off; otherwise the per-device preference decides. */
+function clockHidden(): boolean {
+  return noClock() || pref(HIDE_CLOCK_KEY) === "1";
 }
 
 function puzzleQuery(): string {
@@ -280,7 +322,7 @@ function loadSaved(): SavedGame | null {
 
 function save(): void {
   try {
-    const game: SavedGame = { settings: currentSettings(), results: state.results, award: state.award, finishedAt: Date.now(), note: state.note };
+    const game: SavedGame = { settings: currentSettings(), results: state.results, award: state.award, badge: state.badge, finishedAt: Date.now(), note: state.note };
     if (isCountdown()) {
       state.finalTimeLeftMs = timeLeftMs();
       game.timeLeftMs = state.finalTimeLeftMs;
@@ -363,8 +405,8 @@ function dayLabel(date: string): string {
 
 function scoreText(g: SavedGame): string {
   const total = g.results.reduce((sum, r) => sum + r.ms, 0);
-  const time = g.timeLeftMs !== undefined ? `${formatTime(Math.max(0, g.timeLeftMs))} left` : formatTime(total);
-  return `${g.results.map(squareFor).join("")} ${time}${g.award ? ` ${g.award}` : ""}`;
+  const time = g.settings.clock === "off" ? "" : g.timeLeftMs !== undefined ? ` ${formatTime(Math.max(0, g.timeLeftMs))} left` : ` ${formatTime(total)}`;
+  return `${g.results.map(squareFor).join("")}${time}${g.award ? ` ${g.award}` : ""}`;
 }
 
 /** Jump to another day (and optionally setup) and load it. */
@@ -467,15 +509,19 @@ let loadSeq = 0;
 /**
  * Fetch the puzzle for the current settings. With `quiet`, the intro panel
  * stays on screen (so a select being changed is not torn down under the
- * pointer) and only its labels refresh once the puzzle arrives.
+ * pointer) and only its labels refresh once the puzzle arrives. With `home`,
+ * a finished puzzle lands on the intro (offering "See today's results")
+ * instead of jumping straight to its results.
  */
-async function loadPuzzle(quiet = false): Promise<void> {
+async function loadPuzzle(quiet = false, home = false): Promise<void> {
   const seq = ++loadSeq;
   if (!quiet) state.phase = "loading";
   state.puzzle = null;
   state.results = [];
   state.award = "";
+  state.badge = "";
   state.note = "";
+  state.orbitNote = "";
   state.confirmingQuit = false;
   state.round = 0;
   state.input = "";
@@ -491,9 +537,10 @@ async function loadPuzzle(quiet = false): Promise<void> {
 
   const saved = loadSaved();
   const finished = saved && (saved.results?.length === state.puzzle.rounds.length || saved.results?.some((r) => r.exploded));
-  if (saved && finished && !quiet) {
+  if (saved && finished && !quiet && !home) {
     state.results = saved.results;
     state.award = saved.award ?? "";
+    state.badge = saved.badge ?? "";
     state.note = saved.note ?? "";
     if (isCountdown()) state.finalTimeLeftMs = saved.timeLeftMs ?? 0;
     state.phase = "done";
@@ -501,7 +548,7 @@ async function loadPuzzle(quiet = false): Promise<void> {
   } else if (quiet && state.phase === "intro") {
     refreshIntro();
   } else {
-    state.phase = "intro";
+    state.phase = seq === 1 && OPEN_TROPHIES ? "trophies" : "intro";
     render();
   }
 }
@@ -538,9 +585,9 @@ async function submitGuess(): Promise<void> {
       state.penaltyMs += COUNTDOWN_PENALTY_MS;
       if (timeLeftMs() <= 0) return explode();
     }
+    state.orbitNote = `${guessed.toUpperCase()} is ${orbitHeat(data.near ?? null)}. ${ORBIT_GUESSES - state.orbitGuesses.length} left.`;
     render();
     void loadOrbitEdges();
-    toast(`${guessed.toUpperCase()} is ${orbitHeat(data.near ?? null)}. ${ORBIT_GUESSES - state.orbitGuesses.length} left.`);
     return;
   }
   stopTimer();
@@ -608,6 +655,7 @@ function giveUp(): void {
     });
   }
   state.award = pickAward(state.results);
+  state.badge = awardBadge();
   state.note = QUIT_LINES[Math.floor(Math.random() * QUIT_LINES.length)]!;
   state.confirmingQuit = false;
   state.phase = "done";
@@ -685,6 +733,7 @@ function explode(): void {
     });
   }
   state.award = pickAward(state.results);
+  state.badge = awardBadge();
   save();
   state.phase = "exploded";
   render();
@@ -716,17 +765,65 @@ function startRound(index: number): void {
   state.confirmingQuit = false;
   state.orbitGuesses = [];
   state.orbitEdges = [];
+  state.orbitNote = "";
   if (isOrbit()) void loadOrbitEdges();
   state.phase = "playing";
   state.roundStart = performance.now();
   render();
+  // A new word starts at the top, so the category hint and clues are in view rather than wherever the last button was.
+  window.scrollTo({ top: 0 });
   startTimer();
+}
+
+/** Which of the goofy badges this run earns, recorded so the next pick prefers ones not seen before. */
+function awardBadge(): string {
+  const byDate = allGames();
+  const stats = computeStats(byDate);
+  // This game isn't saved yet: count it if it is the first of its day.
+  const firstToday = !byDate.has(state.date);
+  const filed = readFiled();
+  const ctx: BadgeContext = {
+    results: state.results,
+    finishedAt: new Date(),
+    settings: currentSettings(),
+    theme: currentTheme(),
+    streak: stats.streak + (firstToday && state.date === TODAY ? 1 : 0),
+    daysPlayed: stats.daysPlayed + (firstToday ? 1 : 0),
+    gamesTodayBefore: gamesToday().length,
+    late: state.date !== TODAY,
+    filedBug: filed.bug,
+    filedFeature: filed.feature,
+  };
+  const earned = readEarned();
+  const id = pickBadge(ctx, earned);
+  if (id && !earned.includes(id)) setPref(BADGES_KEY, JSON.stringify([...earned, id]));
+  return id;
+}
+
+function readEarned(): string[] {
+  try {
+    const list = JSON.parse(pref(BADGES_KEY) || "[]") as unknown;
+    return Array.isArray(list) ? list.filter((x): x is string => typeof x === "string") : [];
+  } catch {
+    return [];
+  }
+}
+
+function readFiled(): { bug: boolean; feature: boolean } {
+  const v = pref(FILED_KEY);
+  return { bug: v.includes("bug"), feature: v.includes("feature") };
+}
+
+function markFiled(kind: "bug" | "feature"): void {
+  const v = pref(FILED_KEY);
+  if (!v.includes(kind)) setPref(FILED_KEY, [v, kind].filter(Boolean).join(","));
 }
 
 function nextRound(): void {
   if (state.round + 1 >= state.puzzle!.rounds.length) {
     state.phase = "done";
     state.award = pickAward(state.results);
+    state.badge = awardBadge();
     save();
     stopTimer();
     render();
@@ -805,15 +902,20 @@ document.addEventListener("keydown", (e) => {
     document.getElementById("theme-btn")!.focus();
     return;
   }
+  if (e.key === "Escape" && badgeModal?.open) {
+    closeBadge();
+    return;
+  }
   // Typing inside the theme menu or a form control must not feed the board.
   if (target && (target.closest(".theme-menu") || target.tagName === "SELECT")) return;
   if (target && target.tagName === "BUTTON" && e.key === "Enter") return;
   handleKey(e.key);
 });
 
+/** The header buttons show which game is active. */
 function syncMode(): void {
-  document.querySelectorAll<HTMLButtonElement>(".mode").forEach((b) => {
-    b.setAttribute("aria-pressed", String(b.dataset.mode === state.mode));
+  document.querySelectorAll<HTMLButtonElement>(".mode[data-kind]").forEach((b) => {
+    b.setAttribute("aria-pressed", String(b.dataset.kind === state.kind));
   });
 }
 
@@ -825,11 +927,27 @@ function goHome(): void {
   }
   if (state.phase === "loading" || state.phase === "exploded") return;
   state.phase = "intro";
+  if (location.hash) history.replaceState(null, "", location.pathname + location.search);
   render();
   window.scrollTo({ top: 0 });
 }
 
 document.getElementById("home-btn")?.addEventListener("click", goHome);
+
+/** The 🏆 in the header opens the trophy case. It works whenever a word isn't in progress. */
+function showTrophies(): void {
+  if (state.phase === "playing" || state.phase === "revealed") {
+    toast(NAG_LINES[nagIndex++ % NAG_LINES.length]!);
+    return;
+  }
+  if (state.phase === "loading" || state.phase === "exploded") return;
+  state.phase = "trophies";
+  history.replaceState(null, "", location.pathname + location.search + "#trophies");
+  render();
+  window.scrollTo({ top: 0 });
+}
+
+document.getElementById("trophies-btn")?.addEventListener("click", showTrophies);
 
 /** Every single-finger gesture, in escalating order. The last one is earned. */
 const FINGERS = ["☝️", "👆", "👉", "👈", "👇", "🫵", "🖕"];
@@ -869,19 +987,22 @@ applyTheme(currentTheme());
 syncMode();
 syncUrl();
 
-document.querySelectorAll<HTMLButtonElement>(".mode").forEach((btn) => {
+document.querySelectorAll<HTMLButtonElement>(".mode[data-kind]").forEach((btn) => {
   btn.addEventListener("click", () => {
-    const mode = btn.dataset.mode as Mode;
-    if (mode === state.mode) return;
+    const kind = btn.dataset.kind;
+    if (!isKind(kind)) return;
+    // The active game's button is a home link, like the title.
+    if (kind === state.kind) return goHome();
     if (state.phase === "playing" || state.phase === "revealed") {
-      const ok = window.confirm("Switching puzzles will discard this run. Continue?");
+      const ok = window.confirm("Switching games will discard this run. Continue?");
       if (!ok) return;
     }
     stopTimer();
-    state.mode = mode;
+    state.kind = kind;
     syncMode();
     syncUrl();
-    void loadPuzzle();
+    void loadPuzzle(false, true);
+    window.scrollTo({ top: 0 });
   });
 });
 
@@ -1060,16 +1181,6 @@ function puzzleLabel(): string {
 }
 
 function settingsPanel(): HTMLElement {
-  const kindSel = h("select", { id: "kind", "aria-label": "Game" }) as HTMLSelectElement;
-  for (const [id, k] of Object.entries(KINDS)) {
-    kindSel.append(h("option", { value: id, ...(id === state.kind ? { selected: "" } : {}) }, k.name));
-  }
-  kindSel.addEventListener("change", () => {
-    state.kind = isKind(kindSel.value) ? kindSel.value : DEFAULT_KIND;
-    syncUrl();
-    state.phase = "intro";
-    void loadPuzzle();
-  });
   const lengthSel = h("select", { id: "length", "aria-label": "Word length" }) as HTMLSelectElement;
   for (let n = MIN_LENGTH; n <= MAX_LENGTH; n++) {
     lengthSel.append(h("option", { value: String(n), ...(n === state.length ? { selected: "" } : {}) }, `${n} letters`));
@@ -1113,7 +1224,11 @@ function settingsPanel(): HTMLElement {
     h("option", { value: "stopwatch", ...(state.clock === "stopwatch" ? { selected: "" } : {}) }, "Stopwatch"),
     h("option", { value: "countdown", ...(state.clock === "countdown" ? { selected: "" } : {}) },
       `Countdown, ${formatTime(state.budgetMs)} on the fuse`),
+    h("option", { value: "off", ...(state.clock === "off" ? { selected: "" } : {}) }, "No clock, no hurry"),
   );
+  const hide = h("input", { type: "checkbox", id: "hide-clock" }) as HTMLInputElement;
+  hide.checked = pref(HIDE_CLOCK_KEY) === "1";
+  hide.addEventListener("change", () => setPref(HIDE_CLOCK_KEY, hide.checked ? "1" : ""));
   clockSel.addEventListener("change", () => {
     state.clock = clockSel.value as Clock;
     syncUrl();
@@ -1126,13 +1241,12 @@ function settingsPanel(): HTMLElement {
   });
   const orbit = isOrbit();
   return h("div", { class: "settings" },
-    // Orbit is a secret mode for now: the Game control only appears once you've arrived via ?game=orbit.
-    h("label", { class: "setting setting-wide", ...(orbit ? {} : { hidden: "" }) }, h("span", { class: "muted small" }, "Game"), kindSel, h("span", { class: "muted small" }, KINDS[state.kind].blurb)),
     h("label", { class: "setting", ...(orbit ? { hidden: "" } : {}) }, h("span", { class: "muted small" }, "Word length"), lengthSel),
     h("label", { class: `setting${orbit ? " setting-wide" : ""}` }, h("span", { class: "muted small" }, "Difficulty"), diffSel),
     h("label", { class: "setting setting-wide" }, h("span", { class: "muted small" }, "Word theme"), packSel, h("span", { class: "muted small", id: "pack-note" }, packNote())),
     h("label", { class: "setting setting-wide", ...(orbit ? { hidden: "" } : {}) }, h("span", { class: "muted small" }, "Vocabulary"), vocabSel, h("span", { class: "muted small", id: "vocab-note" }, vocabNote())),
     h("label", { class: "setting setting-wide" }, h("span", { class: "muted small" }, "Clock"), clockSel),
+    h("label", { class: "setting setting-wide setting-check" }, hide, h("span", { class: "muted small" }, "Hide the clock while I play. Still timed, just out of sight.")),
     link,
   );
 }
@@ -1156,7 +1270,11 @@ function render(): void {
     case "done":
       renderResults();
       break;
+    case "trophies":
+      renderTrophies();
+      break;
   }
+  document.getElementById("trophies-btn")?.setAttribute("aria-pressed", String(state.phase === "trophies"));
 }
 
 function pastDayNotice(): HTMLElement {
@@ -1184,11 +1302,33 @@ function introText(): string {
     const ring = per === 1 ? "one word" : `${per} words`;
     return isCountdown()
       ? `Words related to a secret word orbit it, farthest first. Each miss reveals ${ring} closer in. ${ORBIT_GUESSES} guesses per word. You have ${formatTime(state.budgetMs)} for all five, a wrong guess burns ${formatTime(COUNTDOWN_PENALTY_MS)}, and at zero the whole thing blows up.`
-      : `Words related to a secret word orbit it, farthest first. Each miss reveals ${ring} closer in, colours the letters you guessed, and lands your guess where it belongs. You're told the category. ${ORBIT_GUESSES} guesses per word, and the clock runs the whole time.`;
+      : `Words related to a secret word orbit it, farthest first. Each miss reveals ${ring} closer in, colors the letters you guessed, and lands your guess where it belongs. You're told the category. ${ORBIT_GUESSES} guesses per word, and the clock runs the whole time.`;
   }
   return isCountdown()
-    ? `Each word comes with a few guesses already played. Read the colours, work out the only word that fits, and type it. You have ${formatTime(state.budgetMs)} for all five, a wrong guess burns ${formatTime(COUNTDOWN_PENALTY_MS)}, and at zero the whole thing blows up.`
-    : "Each word comes with a few guesses already played. Read the colours, work out the only word that fits, and type it. You get one shot per word and the clock runs the whole time.";
+    ? `Each word comes with a few guesses already played. Read the colors, work out the only word that fits, and type it. You have ${formatTime(state.budgetMs)} for all five, a wrong guess burns ${formatTime(COUNTDOWN_PENALTY_MS)}, and at zero the whole thing blows up.`
+    : "Each word comes with a few guesses already played. Read the colors, work out the only word that fits, and type it. You get one shot per word and the clock runs the whole time.";
+}
+
+/** The headline, one line that says which game this is. */
+function introTitle(): string {
+  return isOrbit() ? "Five orbits. Name the center." : "Five words. One guess each.";
+}
+
+/** The intro paragraph, with the clock talk taken out when there is no clock. */
+function introCopy(): string {
+  const text = introText();
+  return noClock() ? text.replace(/,? and the clock runs the whole time\./, ". No clock, no hurry.") : text;
+}
+
+/** "standard" or "Bonus, 7 letters, extreme": what the collapsed setup line says you are about to play. */
+function setupSummary(): string {
+  const parts = [state.mode === "bonus" ? "Bonus" : "", variant()].filter(Boolean);
+  return parts.length ? parts.join(", ") : "standard";
+}
+
+/** The setup panel starts open only for people who have customised something or asked for it. */
+function setupOpen(): boolean {
+  return pref(SETUP_OPEN_KEY) === "1" || state.mode !== "daily" || variant() !== "";
 }
 
 function alreadyPlayed(): boolean {
@@ -1198,7 +1338,7 @@ function alreadyPlayed(): boolean {
 function startLabel(): string {
   if (!state.puzzle) return "Loading…";
   if (alreadyPlayed()) return "See today's results";
-  return isCountdown() ? "Light the fuse" : "Start the clock";
+  return isCountdown() ? "Light the fuse" : noClock() ? "Start" : "Start the clock";
 }
 
 function startPressed(): void {
@@ -1227,6 +1367,76 @@ function playedToday(): HTMLElement | null {
     h("h3", {}, state.date === TODAY ? "Played today" : `Played on ${formatPuzzleDate(state.date)}`),
     h("p", { class: "muted small" }, "Tap one to see its results, or change the setup above for a fresh board."),
     list,
+  );
+}
+
+// ---------- badge modal ----------
+
+let badgeModal: HTMLDialogElement | null = null;
+let badgeScrim: HTMLElement | null = null;
+
+/**
+ * A badge and its story in a little card, with a show. The dialog is deliberately
+ * not a top-layer modal: the confetti canvas has to be able to fly over it.
+ */
+function openBadge(b: Badge): void {
+  if (!badgeModal || !badgeScrim) {
+    badgeScrim = h("div", { class: "scrim", hidden: "" });
+    badgeScrim.addEventListener("click", closeBadge);
+    badgeModal = h("dialog", { class: "badge-modal", "aria-labelledby": "badge-modal-name" }) as HTMLDialogElement;
+    badgeModal.addEventListener("cancel", (e) => { e.preventDefault(); closeBadge(); });
+    document.body.append(badgeScrim, badgeModal);
+  }
+  const close = h("button", { class: "secondary", type: "button" }, "Nice");
+  close.addEventListener("click", closeBadge);
+  badgeModal.replaceChildren(
+    h("div", { class: "badge-modal-emoji", "aria-hidden": "true" }, b.emoji),
+    h("h3", { id: "badge-modal-name" }, b.name),
+    h("p", {}, b.blurb),
+    close,
+  );
+  badgeScrim.hidden = false;
+  if (!badgeModal.open) badgeModal.show();
+  close.focus();
+  showOff(b.emoji);
+}
+
+function closeBadge(): void {
+  if (badgeModal?.open) badgeModal.close();
+  if (badgeScrim) badgeScrim.hidden = true;
+}
+
+/** The trophy case page: every badge, earned ones with their story on tap, the rest as locked slots. */
+function renderTrophies(): void {
+  const earned = new Set(readEarned());
+  const count = BADGES.filter((b) => earned.has(b.id)).length;
+  const lore = h("p", { class: "trophy-lore" }, count ? "Tap a badge for its story." : "Finish a game and see what turns up.");
+  const grid = h("ul", { class: "trophies" });
+  // Earned first, in the order they were won, then the ones still out there.
+  const ordered = [...readEarned().map(badgeById).filter((b): b is NonNullable<typeof b> => Boolean(b)), ...BADGES.filter((b) => !earned.has(b.id))];
+  for (const b of ordered) {
+    const got = earned.has(b.id);
+    const btn = h("button", { class: `trophy${got ? "" : " trophy-locked"}`, type: "button", title: got ? b.name : "Not yet", ...(got ? {} : { "aria-label": "A badge you have not earned yet" }) },
+      h("span", { class: "trophy-emoji", "aria-hidden": "true" }, got ? b.emoji : "?"),
+      h("span", { class: "trophy-name" }, got ? b.name : "\u00a0"),
+    );
+    if (got) {
+      btn.addEventListener("click", () => openBadge(b));
+    } else {
+      btn.setAttribute("disabled", "");
+    }
+    grid.append(h("li", {}, btn));
+  }
+  const back = h("button", { class: "link-btn", type: "button" }, "Back to the game");
+  back.addEventListener("click", goHome);
+  app.append(
+    h("section", { class: "trophy-case" },
+      h("h2", {}, "Trophy case"),
+      h("p", { class: "muted" }, count === 0 ? `None yet, ${BADGES.length} to find.` : count === BADGES.length ? `All ${BADGES.length}. Go outside.` : `${count} of ${BADGES.length}. The rest are out there somewhere.`),
+      grid,
+      lore,
+      h("p", { class: "center" }, back),
+    ),
   );
 }
 
@@ -1284,7 +1494,9 @@ function refreshIntro(): void {
     if (el) el.textContent = text;
   };
   set("intro-label", puzzleLabel());
-  set("intro-text", introText());
+  set("intro-title", introTitle());
+  set("intro-text", introCopy());
+  set("setup-summary", setupSummary());
   set("pack-note", packNote());
   const legend = document.getElementById("legend");
   if (legend) legend.hidden = isOrbit();
@@ -1303,18 +1515,29 @@ function renderIntro(): void {
   const start = h("button", { class: "primary", type: "button", id: "start-btn" }, startLabel()) as HTMLButtonElement;
   start.disabled = !state.puzzle;
   start.addEventListener("click", startPressed);
+  // The setup panel is tucked away by default so a plain link reads as "just play".
+  const panel = settingsPanel();
+  panel.hidden = !setupOpen();
+  const toggle = h("button", { class: "link-btn", type: "button", id: "setup-toggle" }, panel.hidden ? "Change setup" : "Hide setup");
+  toggle.addEventListener("click", () => {
+    panel.hidden = !panel.hidden;
+    toggle.textContent = panel.hidden ? "Change setup" : "Hide setup";
+    setPref(SETUP_OPEN_KEY, panel.hidden ? "" : "1");
+  });
+  const setupLine = h("p", { class: "setup-line muted small" }, "Setup: ", h("span", { id: "setup-summary" }, setupSummary()), " · ", toggle);
   app.append(
     h("section", { class: "intro" },
       h("p", { class: "eyebrow", id: "intro-label" }, puzzleLabel()),
       ...(state.date !== TODAY ? [pastDayNotice()] : []),
-      h("h2", {}, "Five words. One guess each."),
-      h("p", { id: "intro-text" }, introText()),
+      h("h2", { id: "intro-title" }, introTitle()),
+      h("p", { id: "intro-text" }, introCopy()),
       h("p", { class: "muted small", id: "bonus-note", hidden: "" }, "Bonus is just another game for the same day. Different seed, nothing else changes."),
       h("div", { class: "legend", id: "legend", ...(isOrbit() ? { hidden: "" } : {}) },
         wordRow("crane", ["x", "y", "x", "g", "x"]),
         h("p", { class: "muted", id: "legend-text" }, legendText()),
       ),
-      settingsPanel(),
+      setupLine,
+      panel,
       start,
       h("p", { class: "muted small" }, "Press Enter to start"),
     ),
@@ -1342,7 +1565,7 @@ function renderRound(): void {
         h("span", { class: "muted" }, `Word ${state.round + 1} of ${state.puzzle!.rounds.length}`),
         ...(pack ? [h("span", { class: "pack-chip" }, pack.name)] : theme ? [h("span", { class: "pack-chip" }, `A ${theme.name} word`)] : []),
       ),
-      clock(),
+      ...(clockHidden() ? [] : [clock()]),
     ),
   );
   const rows = h("div", { class: "rows" });
@@ -1361,6 +1584,7 @@ function renderRound(): void {
       colors: { text: colour("--text"), bg: colour("--bg"), line: colour("--line"), muted: colour("--muted"), miss: colour("--miss"), green: colour("--green") },
     }));
     rows.append(board);
+    if (state.orbitNote && !result) rows.append(h("p", { class: "orbit-note" }, state.orbitNote));
   }
   for (const c of round.clues) rows.append(wordRow(c.word, c.feedback));
   // Orbit: earlier misses stack up as ordinary coloured rows, so spelling narrows things too.
@@ -1373,7 +1597,7 @@ function renderRound(): void {
     const got = result.tries && result.tries > 1 ? `Got it in ${result.tries}` : "Got it";
     verdict.append(
       h("strong", {}, result.correct ? got : `It was ${result.answer.toUpperCase()}${penalty}`),
-      h("span", { class: "verdict-time" }, formatTime(result.ms)),
+      ...(noClock() ? [] : [h("span", { class: "verdict-time" }, formatTime(result.ms))]),
     );
     const isLast = state.round + 1 >= state.puzzle!.rounds.length;
     const next = h("button", { class: "primary", type: "button" }, isLast ? "See results" : "Next word");
@@ -1408,8 +1632,9 @@ function renderResults(): void {
   const exploded = results.some((r) => r.exploded);
   const gaveUp = results.some((r) => r.gaveUp);
   const left = Math.max(0, timeLeftMs());
+  const badge = state.badge ? badgeById(state.badge) : undefined;
   const share = buildShareText({
-    date: state.date, mode: state.mode, results, award: state.award, variant: variant(),
+    date: state.date, mode: state.mode, results, award: state.award, variant: variant(), noClock: noClock(), badge: badgeLine(state.badge),
     ...(countdown ? { timeLeftMs: left } : {}),
   });
   const solved = results.filter((r) => r.correct).length;
@@ -1427,8 +1652,12 @@ function renderResults(): void {
     ...(state.date !== TODAY ? [pastDayNotice()] : []),
     h("div", { class: "squares" }, ...results.map(square)),
     ...(state.award ? [h("div", { class: "award", role: "img", "aria-label": "Award" }, state.award)] : []),
-    h("div", { class: `clock clock-final${exploded ? " clock-danger" : ""}` }, countdown ? formatTime(left) : formatTime(totalMs())),
+    ...(noClock() ? [] : [h("div", { class: `clock clock-final${exploded ? " clock-danger" : ""}` }, countdown ? formatTime(left) : formatTime(totalMs()))]),
     h("p", { class: gaveUp ? "quit-note" : "muted" }, blurb),
+    ...(badge ? [h("div", { class: "badge" },
+      h("span", { class: "badge-emoji", "aria-hidden": "true" }, badge.emoji),
+      h("div", { class: "badge-text" }, h("strong", {}, badge.name), h("p", { class: "muted small" }, badge.blurb)),
+    )] : []),
   );
 
   const breakdown = h("ol", { class: "breakdown" });
@@ -1439,7 +1668,7 @@ function renderResults(): void {
       : r.exploded ? "boom" : r.correct ? (r.tries && r.tries > 1 ? `in ${r.tries}` : i === slowest ? "slowest" : "") : `you said ${r.guess.toUpperCase()}`;
     li.append(
       square(r),
-      h("span", { class: "bd-time" }, formatTime(r.ms)),
+      h("span", { class: "bd-time" }, noClock() ? "" : formatTime(r.ms)),
       h("span", { class: "bd-word" }, r.answer ? r.answer.toUpperCase() : "?".repeat(state.puzzle!.length)),
       h("span", { class: "bd-note muted" }, note),
     );
@@ -1448,6 +1677,7 @@ function renderResults(): void {
 
   const another = h("button", { class: "secondary", type: "button" }, "Play another setup");
   another.addEventListener("click", () => {
+    setPref(SETUP_OPEN_KEY, "1");
     state.phase = "intro";
     render();
     document.querySelector(".settings")?.scrollIntoView({ block: "start" });
@@ -1492,6 +1722,9 @@ function issueUrl(template: "bug_report" | "feature_request", share?: string): s
 function feedbackLinks(share?: string): HTMLElement {
   const bug = h("a", { href: issueUrl("bug_report", share), target: "_blank", rel: "noopener" }, "Something wrong? Report it");
   const idea = h("a", { href: issueUrl("feature_request"), target: "_blank", rel: "noopener" }, "Suggest a feature");
+  // Opening a form counts as filing, for the badges. Nobody is checking GitHub.
+  bug.addEventListener("click", () => markFiled("bug"));
+  idea.addEventListener("click", () => markFiled("feature"));
   return h("p", { class: "feedback muted small" }, bug, " · ", idea);
 }
 

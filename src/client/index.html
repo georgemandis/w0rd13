@@ -19,14 +19,15 @@
   <body>
     <header class="top">
       <h1 class="brand-wrap"><button class="brand" id="home-btn" type="button" aria-label="w0rd13 home"><span class="logo" id="logo" aria-hidden="true"><span class="logo-inner"><svg class="logo-face logo-front" viewBox="0 0 64 64"><rect width="64" height="64" rx="8" fill="var(--green)"/><text x="32" y="46" font-family="Helvetica, Arial, sans-serif" font-size="40" font-weight="700" fill="#fff" text-anchor="middle">1</text></svg><span class="logo-face logo-back">☝️</span></span></span>w0rd13</button></h1>
-      <nav class="modes" aria-label="Puzzle">
-        <button class="mode" data-mode="daily" aria-pressed="true">Daily</button>
-        <button class="mode" data-mode="bonus" aria-pressed="false">Bonus</button>
+      <nav class="modes" aria-label="Game">
+        <button class="mode" data-kind="clues" aria-pressed="true">Clues</button>
+        <button class="mode" data-kind="orbit" aria-pressed="false">Orbit</button>
+        <button class="mode mode-icon" id="trophies-btn" type="button" aria-pressed="false" aria-label="Trophy case" title="Trophy case">🏆</button>
         <div class="theme-menu" id="theme-menu">
           <button class="theme-btn" id="theme-btn" type="button" aria-haspopup="menu" aria-expanded="false" aria-controls="theme-list">
             <span class="swatch" id="theme-swatch" aria-hidden="true"></span><span id="theme-name">Classic</span><span class="caret" aria-hidden="true"></span>
           </button>
-          <div class="theme-list" id="theme-list" role="menu" aria-label="Colour theme" hidden></div>
+          <div class="theme-list" id="theme-list" role="menu" aria-label="Color theme" hidden></div>
         </div>
       </nav>
     </header>

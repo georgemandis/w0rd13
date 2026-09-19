@@ -1,12 +1,12 @@
 export type Mode = "daily" | "bonus";
 export type Difficulty = "easy" | "normal" | "hard" | "extreme";
-export type Clock = "stopwatch" | "countdown";
+export type Clock = "stopwatch" | "countdown" | "off";
 export type Vocab = "standard" | "everyday";
 export type Kind = "clues" | "orbit";
 
 export const DEFAULT_KIND: Kind = "clues";
 export const KINDS: Record<Kind, { name: string; blurb: string }> = {
-  clues: { name: "Clues", blurb: "Read the coloured guesses already played and name the word." },
+  clues: { name: "Clues", blurb: "Read the colored guesses already played and name the word." },
   orbit: { name: "Orbit", blurb: "Words that orbit a secret word. Name the word in the middle." },
 };
 /** Orbit mode: guesses per word, and how many neighbours each ring reveals, by difficulty. */
@@ -33,7 +33,7 @@ export const COUNTDOWN_BUDGET_MS = 180_000;
 export const COUNTDOWN_PENALTY_MS = 15_000;
 
 export function isClock(v: unknown): v is Clock {
-  return v === "stopwatch" || v === "countdown";
+  return v === "stopwatch" || v === "countdown" || v === "off";
 }
 
 /**
@@ -47,7 +47,7 @@ export const PACKS: Record<string, { name: string; blurb: string; loose?: boolea
   body: { name: "Body parts", blurb: "From scalp to ankle." },
   music: { name: "Music", blurb: "Instruments, styles and stage words." },
   nature: { name: "The outdoors", blurb: "Weather, water and wild places." },
-  colours: { name: "Colours", blurb: "Every shade from ashen to tawny." },
+  colours: { name: "Colors", blurb: "Every shade from ashen to tawny." },
   purple: { name: "Purple Rain", blurb: "Song and album titles, names included, plus spellings like DIE4U.", loose: true },
   swift: { name: "Swiftie", blurb: "Taylor Swift song and album titles, a few names included.", loose: true },
   sports: { name: "Sports", blurb: "Courts, pitches, medals and the people chasing them." },
@@ -101,12 +101,14 @@ export function variantLabel(length: number, difficulty: Difficulty, clock: Cloc
   if (kind === "orbit") {
     if (difficulty !== DEFAULT_DIFFICULTY) parts.push(DIFFICULTIES[difficulty].label.toLowerCase());
     if (clock === "countdown") parts.push("countdown");
+    else if (clock === "off") parts.push("no clock");
     return parts.join(", ");
   }
   if (length !== DEFAULT_LENGTH && !pack) parts.push(`${length} letters`);
   if (vocab === "everyday" && !pack) parts.push("everyday");
   if (difficulty !== DEFAULT_DIFFICULTY) parts.push(DIFFICULTIES[difficulty].label.toLowerCase());
   if (clock === "countdown") parts.push("countdown");
+  else if (clock === "off") parts.push("no clock");
   return parts.join(", ");
 }
 
