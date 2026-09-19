@@ -1,0 +1,60 @@
+name: Bug report
+description: Something broke, looked wrong, or a puzzle didn't add up
+labels: [bug]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks! A few details make this much faster to fix.
+        The game keeps its settings in the address bar, so the link is the best clue,
+        and a screenshot is worth more than a paragraph. Drag one into any text box below.
+  - type: input
+    id: link
+    attributes:
+      label: Link to the setup
+      description: Copy the address bar, or use "Copy link to this setup" on the intro screen.
+      placeholder: https://w0rd13.lol/?letters=7&difficulty=extreme
+    validations:
+      required: true
+  - type: input
+    id: date
+    attributes:
+      label: Puzzle date
+      description: The date shown above the puzzle, if it matters (daily puzzles change).
+      placeholder: September 18, 2026
+  - type: textarea
+    id: what
+    attributes:
+      label: What happened
+      description: What did you do, and what went wrong? Paste the share text if you have it.
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: What you expected
+  - type: dropdown
+    id: game
+    attributes:
+      label: Which game
+      options:
+        - Clues (the normal one)
+        - Orbit
+        - Not sure / both
+  - type: input
+    id: device
+    attributes:
+      label: Device and browser
+      placeholder: iPhone 15, Safari
+  - type: input
+    id: theme
+    attributes:
+      label: Colour theme
+      description: Only if it looks like a display problem.
+      placeholder: Classic
+  - type: textarea
+    id: screenshot
+    attributes:
+      label: Screenshot
+      description: Please! Drag or paste an image here. A photo of your phone is fine too.
+      placeholder: Paste or drop an image here.

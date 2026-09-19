@@ -1,0 +1,40 @@
+name: Feature request
+description: A word pack, a theme, a mode, or anything else you wish it did
+labels: [enhancement]
+body:
+  - type: textarea
+    id: idea
+    attributes:
+      label: The idea
+      description: What should it do? Be as specific or as vague as you like.
+    validations:
+      required: true
+  - type: textarea
+    id: why
+    attributes:
+      label: Why it matters
+      description: What would this make better, or what's annoying now?
+  - type: dropdown
+    id: kind
+    attributes:
+      label: What kind of thing is it
+      options:
+        - Word pack or vocabulary
+        - Colour theme
+        - Game mode or rules
+        - Sharing, stats or history
+        - Looks and feel
+        - Something else
+  - type: dropdown
+    id: game
+    attributes:
+      label: Which game
+      options:
+        - Clues (the normal one)
+        - Orbit
+        - Both
+  - type: textarea
+    id: extra
+    attributes:
+      label: Anything else
+      description: Sketches, screenshots and examples help a lot. Drag an image straight in here. Links, or the word list you already wrote at 2am, are welcome too.
