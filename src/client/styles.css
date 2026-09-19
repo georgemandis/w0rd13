@@ -321,6 +321,10 @@ h2 { margin: 0 0 0.75rem; font-size: 1.6rem; line-height: 1.2; letter-spacing: -
 }
 .link-btn:hover { color: var(--text); }
 .link-btn:focus-visible { outline: 2px solid var(--text); outline-offset: 2px; }
+.feedback { margin: 2.5rem 0 1rem; text-align: center; }
+.feedback a { color: var(--muted); text-decoration: underline; text-underline-offset: 3px; }
+.feedback a:hover { color: var(--text); }
+.feedback a:focus-visible { outline: 2px solid var(--text); outline-offset: 2px; }
 
 /* ---------- settings ---------- */
 

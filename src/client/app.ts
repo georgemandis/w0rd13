@@ -1323,6 +1323,7 @@ function renderIntro(): void {
   if (played) app.append(played);
   const hist = historySection();
   if (hist) app.append(hist);
+  app.append(feedbackLinks());
   const bonusNote = document.getElementById("bonus-note");
   if (bonusNote) bonusNote.hidden = state.mode !== "bonus";
   start.focus();
@@ -1459,7 +1460,39 @@ function renderResults(): void {
   });
   const pre = h("pre", { class: "share-preview" }, share);
 
-  app.append(summary, breakdown, shareBtn, pre, another);
+  app.append(summary, breakdown, shareBtn, pre, another, feedbackLinks(share));
+}
+
+// ---------- feedback links ----------
+
+const REPO_URL = "https://github.com/georgemandis/w0rd13";
+
+/** A short "device, browser" line for the bug form, from the user agent. */
+function deviceSummary(): string {
+  const ua = navigator.userAgent;
+  const device = /iPhone/.test(ua) ? "iPhone" : /iPad/.test(ua) ? "iPad" : /Android/.test(ua) ? "Android" : /Mac/.test(ua) ? "Mac" : /Windows/.test(ua) ? "Windows" : /Linux/.test(ua) ? "Linux" : "";
+  const browser = /Edg\//.test(ua) ? "Edge" : /Firefox\//.test(ua) ? "Firefox" : /Chrome\//.test(ua) ? "Chrome" : /Safari\//.test(ua) ? "Safari" : "";
+  return [device, browser].filter(Boolean).join(", ");
+}
+
+/** A GitHub issue form, prefilled with everything the game already knows. Field names match .github/ISSUE_TEMPLATE. */
+function issueUrl(template: "bug_report" | "feature_request", share?: string): string {
+  const q = new URLSearchParams({ template: `${template}.yml`, game: isOrbit() ? "Orbit" : "Clues (the normal one)" });
+  if (template === "bug_report") {
+    q.set("link", settingsUrl());
+    q.set("date", formatPuzzleDate(state.date));
+    q.set("device", deviceSummary());
+    q.set("theme", themeFor(currentTheme()).name);
+    if (share) q.set("what", `\n\n${share}`);
+  }
+  return `${REPO_URL}/issues/new?${q}`;
+}
+
+/** "Something wrong? Report it" and "Suggest a feature", for the bottom of a screen. */
+function feedbackLinks(share?: string): HTMLElement {
+  const bug = h("a", { href: issueUrl("bug_report", share), target: "_blank", rel: "noopener" }, "Something wrong? Report it");
+  const idea = h("a", { href: issueUrl("feature_request"), target: "_blank", rel: "noopener" }, "Suggest a feature");
+  return h("p", { class: "feedback muted small" }, bug, " · ", idea);
 }
 
 // ---------- helpers ----------
